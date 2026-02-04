@@ -1,0 +1,52 @@
+# 공통 백엔드 서비스용 pnpm Dockerfile
+# 사용법: docker build -f Dockerfile.pnpm --build-arg SERVICE=auth-service -t rtb-auth-service .
+
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+RUN npm install -g pnpm@10.28.2
+
+# pnpm workspace 설정 복사
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc* ./
+
+# shared 패키지 먼저 설치
+COPY packages/shared/package.json ./packages/shared/
+RUN cd packages/shared && pnpm install --frozen-lockfile
+
+# shared 빌드
+COPY packages/shared ./packages/shared
+RUN cd packages/shared && pnpm run build
+
+# SERVICE 인자로 받은 패키지 설치
+ARG SERVICE
+COPY packages/${SERVICE}/package.json ./packages/${SERVICE}/
+RUN cd packages/${SERVICE} && pnpm install --frozen-lockfile
+
+# SERVICE 소스 복사 및 빌드
+COPY packages/${SERVICE} ./packages/${SERVICE}
+RUN cd packages/${SERVICE} && pnpm run build
+
+# Production 이미지
+FROM node:20-alpine AS runner
+
+ARG SERVICE
+ENV SERVICE_NAME=${SERVICE}
+
+WORKDIR /app
+
+RUN npm install -g pnpm@10.28.2
+
+# 빌드된 파일만 복사
+COPY --from=builder /app/packages/${SERVICE}/dist ./dist
+COPY --from=builder /app/packages/${SERVICE}/package.json ./
+COPY --from=builder /app/packages/${SERVICE}/node_modules ./node_modules
+
+# shared 의존성도 복사
+COPY --from=builder /app/packages/shared/dist ../shared/dist
+COPY --from=builder /app/packages/shared/node_modules ../shared/node_modules
+
+# 포트는 서비스별로 다름
+EXPOSE 3000
+
+CMD ["node", "dist/index.js"]

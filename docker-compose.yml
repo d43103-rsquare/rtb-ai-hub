@@ -1,0 +1,201 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: rtb-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rtb_ai_hub}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - rtb-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: rtb-redis
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - redis-data:/data
+      - ./infrastructure/redis/redis.conf:/usr/local/etc/redis/redis.conf
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - rtb-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mcp-jira:
+    build:
+      context: ./mcp-servers/jira
+      dockerfile: Dockerfile
+    container_name: rtb-mcp-jira
+    environment:
+      JIRA_HOST: ${JIRA_HOST}
+      JIRA_EMAIL: ${JIRA_EMAIL}
+      JIRA_API_TOKEN: ${JIRA_API_TOKEN}
+    networks:
+      - rtb-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  mcp-figma:
+    build:
+      context: ./mcp-servers/figma
+      dockerfile: Dockerfile
+    container_name: rtb-mcp-figma
+    environment:
+      FIGMA_ACCESS_TOKEN: ${FIGMA_ACCESS_TOKEN}
+    networks:
+      - rtb-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  mcp-github:
+    build:
+      context: ./mcp-servers/github
+      dockerfile: Dockerfile
+    container_name: rtb-mcp-github
+    environment:
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+    networks:
+      - rtb-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  mcp-datadog:
+    build:
+      context: ./mcp-servers/datadog
+      dockerfile: Dockerfile
+    container_name: rtb-mcp-datadog
+    environment:
+      DD_API_KEY: ${DD_API_KEY}
+      DD_APP_KEY: ${DD_APP_KEY}
+    networks:
+      - rtb-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  workflow-engine:
+    build:
+      context: ./packages/workflow-engine
+      dockerfile: Dockerfile
+    container_name: rtb-workflow-engine
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-rtb_ai_hub}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OMO_API_KEY: ${OMO_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mcp-jira:
+        condition: service_healthy
+      mcp-figma:
+        condition: service_healthy
+      mcp-github:
+        condition: service_healthy
+      mcp-datadog:
+        condition: service_healthy
+    networks:
+      - rtb-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  webhook-listener:
+    build:
+      context: ./packages/webhook-listener
+      dockerfile: Dockerfile
+    container_name: rtb-webhook-listener
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      WEBHOOK_PORT: 4000
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "${WEBHOOK_PORT:-4000}:4000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - rtb-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  dashboard:
+    build:
+      context: ./packages/dashboard
+      dockerfile: Dockerfile
+    container_name: rtb-dashboard
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      VITE_API_URL: http://localhost:4000
+    ports:
+      - "${DASHBOARD_PORT:-3000}:80"
+    depends_on:
+      webhook-listener:
+        condition: service_healthy
+    networks:
+      - rtb-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  rtb-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:

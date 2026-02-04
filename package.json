@@ -1,0 +1,31 @@
+{
+  "name": "rtb-ai-hub",
+  "version": "1.0.0",
+  "description": "AI-powered automation hub for Figma → Jira → Dev → Deploy workflow",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "pnpm -r run build",
+    "build:shared": "pnpm --filter @rtb-ai-hub/shared run build",
+    "build:auth": "pnpm --filter @rtb-ai-hub/auth-service run build",
+    "build:webhook": "pnpm --filter @rtb-ai-hub/webhook-listener run build",
+    "build:workflow": "pnpm --filter @rtb-ai-hub/workflow-engine run build",
+    "build:dashboard": "pnpm --filter @rtb-ai-hub/dashboard run build",
+    "dev:auth": "pnpm --filter @rtb-ai-hub/auth-service run dev",
+    "dev:webhook": "pnpm --filter @rtb-ai-hub/webhook-listener run dev",
+    "dev:workflow": "pnpm --filter @rtb-ai-hub/workflow-engine run dev",
+    "dev:dashboard": "pnpm --filter @rtb-ai-hub/dashboard run dev",
+    "clean": "pnpm -r run clean && rm -rf node_modules",
+    "docker:build": "docker-compose -f docker-compose.test.yml build",
+    "docker:up": "docker-compose -f docker-compose.test.yml up -d",
+    "docker:down": "docker-compose -f docker-compose.test.yml down",
+    "docker:logs": "docker-compose -f docker-compose.test.yml logs -f"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@10.28.2"
+}

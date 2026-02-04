@@ -1,0 +1,20 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN npm config set strict-ssl false
+
+COPY packages/shared ./packages/shared
+COPY packages/workflow-engine ./packages/workflow-engine
+
+WORKDIR /app/packages/shared
+RUN npm install && npm run build && npm link
+
+WORKDIR /app/packages/workflow-engine
+RUN npm link @rtb-ai-hub/shared && npm install --ignore-scripts && npm run build
+
+EXPOSE 3001
+
+ENV NODE_ENV=production
+
+CMD ["node", "dist/index.js"]

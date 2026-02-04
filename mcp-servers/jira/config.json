@@ -1,0 +1,21 @@
+{
+  "server": {
+    "port": 3000,
+    "host": "0.0.0.0"
+  },
+  "jira": {
+    "host": "${JIRA_HOST}",
+    "email": "${JIRA_EMAIL}",
+    "apiToken": "${JIRA_API_TOKEN}"
+  },
+  "tools": {
+    "createIssue": true,
+    "updateIssue": true,
+    "transitionIssue": true,
+    "addComment": true,
+    "searchIssues": true,
+    "getIssue": true,
+    "createEpic": true,
+    "createSubtask": true
+  }
+}

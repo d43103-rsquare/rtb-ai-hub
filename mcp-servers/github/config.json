@@ -1,0 +1,21 @@
+{
+  "server": {
+    "port": 3000,
+    "host": "0.0.0.0"
+  },
+  "github": {
+    "token": "${GITHUB_TOKEN}"
+  },
+  "tools": {
+    "createBranch": true,
+    "createCommit": true,
+    "createPullRequest": true,
+    "createReview": true,
+    "createReviewComment": true,
+    "getPullRequest": true,
+    "getPullRequestDiff": true,
+    "mergePullRequest": true,
+    "searchIssues": true,
+    "createIssueComment": true
+  }
+}
