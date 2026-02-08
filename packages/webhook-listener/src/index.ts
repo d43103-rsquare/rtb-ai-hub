@@ -6,6 +6,7 @@ import { Queue } from 'bullmq';
 import Redis from 'ioredis';
 import { createLogger, QUEUE_NAMES, requireEnv } from '@rtb-ai-hub/shared';
 import { createRoutes } from './routes';
+import { healthRateLimit, webhookRateLimit } from './middleware/rate-limit';
 
 const logger = createLogger('webhook-listener');
 const app = express();
@@ -24,14 +25,21 @@ const datadogQueue = new Queue(QUEUE_NAMES.DATADOG, { connection: redisConnectio
 
 app.use(helmet());
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(
+  express.json({
+    limit: '10mb',
+    verify: (req: any, _res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 app.use(pinoHttp({ logger: logger as any }));
 
-app.get('/health', (req, res) => {
+app.get('/health', healthRateLimit, (req, res) => {
   res.json({ status: 'ok', service: 'webhook-listener', timestamp: new Date().toISOString() });
 });
 
-app.use(createRoutes({ figmaQueue, jiraQueue, githubQueue, datadogQueue }));
+app.use(webhookRateLimit, createRoutes({ figmaQueue, jiraQueue, githubQueue, datadogQueue }));
 
 app.listen(port, () => {
   logger.info(`Webhook listener running on port ${port}`);

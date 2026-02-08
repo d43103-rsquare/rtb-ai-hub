@@ -78,10 +78,10 @@ describe('AnthropicClient', () => {
   });
 
   describe('getModelForTier', () => {
-    it('returns opus for HEAVY tier', async () => {
+    it('returns sonnet-4 for HEAVY tier', async () => {
       mockCreate.mockResolvedValue({
         content: [{ type: 'text', text: 'response' }],
-        model: 'claude-3-opus-20240229',
+        model: 'claude-sonnet-4-20250514',
         usage: { input_tokens: 10, output_tokens: 20 },
         stop_reason: 'end_turn',
       });
@@ -90,14 +90,14 @@ describe('AnthropicClient', () => {
       await client.generateText('test', { tier: AITier.HEAVY });
 
       expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ model: 'claude-3-opus-20240229' })
+        expect.objectContaining({ model: 'claude-sonnet-4-20250514' })
       );
     });
 
-    it('returns sonnet for MEDIUM tier', async () => {
+    it('returns sonnet-4 for MEDIUM tier', async () => {
       mockCreate.mockResolvedValue({
         content: [{ type: 'text', text: 'response' }],
-        model: 'claude-3-5-sonnet-20240620',
+        model: 'claude-sonnet-4-20250514',
         usage: { input_tokens: 10, output_tokens: 20 },
         stop_reason: 'end_turn',
       });
@@ -106,14 +106,14 @@ describe('AnthropicClient', () => {
       await client.generateText('test', { tier: AITier.MEDIUM });
 
       expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ model: 'claude-3-5-sonnet-20240620' })
+        expect.objectContaining({ model: 'claude-sonnet-4-20250514' })
       );
     });
 
-    it('returns haiku for LIGHT tier', async () => {
+    it('returns haiku-4 for LIGHT tier', async () => {
       mockCreate.mockResolvedValue({
         content: [{ type: 'text', text: 'response' }],
-        model: 'claude-3-haiku-20240307',
+        model: 'claude-haiku-4-20250414',
         usage: { input_tokens: 10, output_tokens: 20 },
         stop_reason: 'end_turn',
       });
@@ -122,7 +122,7 @@ describe('AnthropicClient', () => {
       await client.generateText('test', { tier: AITier.LIGHT });
 
       expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ model: 'claude-3-haiku-20240307' })
+        expect.objectContaining({ model: 'claude-haiku-4-20250414' })
       );
     });
   });

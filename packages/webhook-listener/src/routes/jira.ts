@@ -8,12 +8,14 @@ import {
 } from '@rtb-ai-hub/shared';
 import type { JiraWebhookEvent } from '@rtb-ai-hub/shared';
 import { optionalAuth, AuthRequest } from '../middleware/auth';
+import { verifyJiraSignature } from '../middleware/webhook-signature';
 
 export function createJiraRouter(jiraQueue: Queue) {
   const router = Router();
 
   router.post(
     '/webhooks/jira',
+    verifyJiraSignature,
     optionalAuth,
     validateBody(jiraWebhookSchema),
     async (req: AuthRequest, res) => {

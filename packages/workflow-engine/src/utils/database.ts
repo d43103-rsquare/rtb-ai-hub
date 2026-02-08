@@ -1,5 +1,6 @@
 import { Pool, PoolClient } from 'pg';
-import { createLogger, requireEnv } from '@rtb-ai-hub/shared';
+import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { createLogger, requireEnv, dbSchema } from '@rtb-ai-hub/shared';
 
 const logger = createLogger('database');
 
@@ -27,6 +28,21 @@ export function getPool(): Pool {
 
   return pool;
 }
+
+let drizzleDb: NodePgDatabase<typeof dbSchema> | null = null;
+
+export function getDb(): NodePgDatabase<typeof dbSchema> {
+  if (!drizzleDb) {
+    drizzleDb = drizzle(getPool(), { schema: dbSchema });
+  }
+  return drizzleDb;
+}
+
+export const db = new Proxy({} as NodePgDatabase<typeof dbSchema>, {
+  get(_target, prop, receiver) {
+    return Reflect.get(getDb(), prop, receiver);
+  },
+});
 
 export async function query<T = any>(text: string, params?: any[]): Promise<T[]> {
   const pool = getPool();
@@ -70,6 +86,7 @@ export async function closePool(): Promise<void> {
   if (pool) {
     await pool.end();
     pool = null;
+    drizzleDb = null;
     logger.info('Database connection pool closed');
   }
 }

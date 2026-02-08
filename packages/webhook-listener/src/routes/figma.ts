@@ -8,12 +8,14 @@ import {
 } from '@rtb-ai-hub/shared';
 import type { FigmaWebhookEvent } from '@rtb-ai-hub/shared';
 import { optionalAuth, AuthRequest } from '../middleware/auth';
+import { verifyFigmaSignature } from '../middleware/webhook-signature';
 
 export function createFigmaRouter(figmaQueue: Queue) {
   const router = Router();
 
   router.post(
     '/webhooks/figma',
+    verifyFigmaSignature,
     optionalAuth,
     validateBody(figmaWebhookSchema),
     async (req: AuthRequest, res) => {

@@ -1,0 +1,1021 @@
+openapi: 3.0.3
+info:
+  title: RTB AI Hub API
+  version: 1.0.0
+  description: |
+    AI-powered automation hub that orchestrates Figma design → Jira tickets → auto development → code review → deployment → monitoring.
+
+    The API consists of two services:
+    - **Webhook Listener** (port 4000): Receives webhook events from Figma, Jira, GitHub, and Datadog, validates payloads via Zod schemas, and queues them for async processing via BullMQ.
+    - **Auth Service** (port 4001): Handles Google Workspace OAuth login, session management, and encrypted credential storage (AES-256-GCM) for per-user API keys.
+
+    ### Authentication Flow
+    - Webhook endpoints accept **optional** Bearer tokens for user attribution.
+    - Auth service endpoints use **session cookies** (HttpOnly) set after Google OAuth login, or **Bearer JWT tokens** in the Authorization header.
+    - Webhook signature headers (e.g. `X-Figma-Signature`, `X-Hub-Signature-256`) are verified when present but not required.
+  contact:
+    name: RTB AI Hub
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:4000
+    description: Webhook Listener (local development)
+  - url: http://localhost:4001
+    description: Auth Service (local development)
+
+tags:
+  - name: Webhook Listener — Health
+    description: Health check for the webhook-listener service
+  - name: Webhook Listener — Figma
+    description: Figma webhook ingestion
+  - name: Webhook Listener — Jira
+    description: Jira webhook ingestion
+  - name: Webhook Listener — GitHub
+    description: GitHub webhook ingestion
+  - name: Webhook Listener — Datadog
+    description: Datadog webhook ingestion
+  - name: Auth Service — Health
+    description: Health check for the auth-service
+  - name: Auth Service — Google OAuth
+    description: Google Workspace OAuth login, callback, logout, and token refresh
+  - name: Auth Service — User
+    description: Current user information
+  - name: Auth Service — Credentials
+    description: User credential (API key / OAuth) management
+
+paths:
+  # ──────────────────────────────────────────────
+  # Webhook Listener (:4000)
+  # ──────────────────────────────────────────────
+
+  /health:
+    get:
+      tags:
+        - Webhook Listener — Health
+      summary: Health check
+      description: Returns service health status with current timestamp.
+      operationId: webhookHealthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookHealthResponse'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /webhooks/figma:
+    post:
+      tags:
+        - Webhook Listener — Figma
+      summary: Receive Figma webhook event
+      description: |
+        Accepts Figma file update events. The pipeline is:
+        signature verification (optional) → Bearer auth (optional) → Zod validation → BullMQ queue.
+      operationId: receiveFigmaWebhook
+      parameters:
+        - $ref: '#/components/parameters/FigmaSignature'
+        - $ref: '#/components/parameters/OptionalAuthorization'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FigmaWebhookPayload'
+      responses:
+        '202':
+          description: Event accepted and queued for processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookAcceptedResponse'
+        '401':
+          $ref: '#/components/responses/InvalidSignature'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /webhooks/jira:
+    post:
+      tags:
+        - Webhook Listener — Jira
+      summary: Receive Jira webhook event
+      description: |
+        Accepts Jira issue events (e.g. issue_updated, issue_created). The pipeline is:
+        signature verification (optional) → Bearer auth (optional) → Zod validation → BullMQ queue.
+      operationId: receiveJiraWebhook
+      parameters:
+        - $ref: '#/components/parameters/JiraSignature'
+        - $ref: '#/components/parameters/OptionalAuthorization'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JiraWebhookPayload'
+      responses:
+        '202':
+          description: Event accepted and queued for processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookAcceptedResponse'
+        '401':
+          $ref: '#/components/responses/InvalidSignature'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /webhooks/github:
+    post:
+      tags:
+        - Webhook Listener — GitHub
+      summary: Receive GitHub webhook event
+      description: |
+        Accepts GitHub events (pull_request, deployment, etc.). The pipeline is:
+        signature verification (optional) → Bearer auth (optional) → Zod validation → BullMQ queue.
+      operationId: receiveGitHubWebhook
+      parameters:
+        - $ref: '#/components/parameters/GitHubSignature'
+        - $ref: '#/components/parameters/GitHubEvent'
+        - $ref: '#/components/parameters/OptionalAuthorization'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GitHubWebhookPayload'
+      responses:
+        '202':
+          description: Event accepted and queued for processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookAcceptedResponse'
+        '401':
+          $ref: '#/components/responses/InvalidSignature'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /webhooks/datadog:
+    post:
+      tags:
+        - Webhook Listener — Datadog
+      summary: Receive Datadog webhook event
+      description: |
+        Accepts Datadog alert/event notifications. The pipeline is:
+        signature verification (optional) → Bearer auth (optional) → Zod validation → BullMQ queue.
+      operationId: receiveDatadogWebhook
+      parameters:
+        - $ref: '#/components/parameters/DatadogSignature'
+        - $ref: '#/components/parameters/OptionalAuthorization'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatadogWebhookPayload'
+      responses:
+        '202':
+          description: Event accepted and queued for processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookAcceptedResponse'
+        '401':
+          $ref: '#/components/responses/InvalidSignature'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ──────────────────────────────────────────────
+  # Auth Service (:4001)
+  # ──────────────────────────────────────────────
+
+  /health#auth:
+    get:
+      tags:
+        - Auth Service — Health
+      summary: Health check
+      description: Returns auth-service health status.
+      operationId: authHealthCheck
+      servers:
+        - url: http://localhost:4001
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthHealthResponse'
+
+  /auth/google/login:
+    get:
+      tags:
+        - Auth Service — Google OAuth
+      summary: Initiate Google OAuth login
+      description: Returns a Google OAuth authorization URL. The client should redirect the user's browser to this URL.
+      operationId: googleLogin
+      servers:
+        - url: http://localhost:4001
+      responses:
+        '200':
+          description: Authorization URL generated
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - authUrl
+                properties:
+                  authUrl:
+                    type: string
+                    format: uri
+                    description: Google OAuth consent screen URL
+                    example: https://accounts.google.com/o/oauth2/v2/auth?client_id=...
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/google/callback:
+    get:
+      tags:
+        - Auth Service — Google OAuth
+      summary: Google OAuth callback
+      description: |
+        Handles the OAuth redirect from Google. On success, sets `session_token` and `refresh_token`
+        HttpOnly cookies and redirects the user to the dashboard. On failure, redirects with an error query parameter.
+      operationId: googleCallback
+      servers:
+        - url: http://localhost:4001
+      parameters:
+        - name: code
+          in: query
+          required: true
+          description: Authorization code from Google
+          schema:
+            type: string
+        - name: scope
+          in: query
+          required: false
+          description: Granted OAuth scopes
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to dashboard on success or login page on failure
+          headers:
+            Location:
+              schema:
+                type: string
+              description: Redirect URL (dashboard on success, login on failure)
+            Set-Cookie:
+              schema:
+                type: string
+              description: 'session_token and refresh_token HttpOnly cookies (on success)'
+        '400':
+          description: Missing authorization code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/google/logout:
+    post:
+      tags:
+        - Auth Service — Google OAuth
+      summary: Logout
+      description: Invalidates the current session and clears session cookies.
+      operationId: logout
+      servers:
+        - url: http://localhost:4001
+      responses:
+        '200':
+          description: Successfully logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Auth Service — Google OAuth
+      summary: Refresh session token
+      description: |
+        Uses the `refresh_token` cookie to issue new session and refresh tokens.
+        Both cookies are replaced with fresh values.
+      operationId: refreshToken
+      servers:
+        - url: http://localhost:4001
+      responses:
+        '200':
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: Updated session_token and refresh_token cookies
+        '401':
+          description: No refresh token or invalid refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/me:
+    get:
+      tags:
+        - Auth Service — User
+      summary: Get current user info
+      description: Returns the authenticated user's profile information.
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      servers:
+        - url: http://localhost:4001
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /credentials/api-key:
+    post:
+      tags:
+        - Auth Service — Credentials
+      summary: Store an API key
+      description: Encrypts and stores an API key (Anthropic or OpenAI) for the authenticated user using AES-256-GCM.
+      operationId: storeApiKey
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      servers:
+        - url: http://localhost:4001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiKeyInput'
+      responses:
+        '200':
+          description: API key stored successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - service
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  service:
+                    type: string
+                    enum: [anthropic, openai]
+                    example: anthropic
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /credentials:
+    get:
+      tags:
+        - Auth Service — Credentials
+      summary: List user credentials
+      description: Returns all credentials for the authenticated user. API keys are never returned in plain text.
+      operationId: listCredentials
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      servers:
+        - url: http://localhost:4001
+      responses:
+        '200':
+          description: List of credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - credentials
+                properties:
+                  credentials:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CredentialSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /credentials/{service}:
+    delete:
+      tags:
+        - Auth Service — Credentials
+      summary: Delete a credential
+      description: Removes a stored credential for the given service.
+      operationId: deleteCredential
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      servers:
+        - url: http://localhost:4001
+      parameters:
+        - name: service
+          in: path
+          required: true
+          description: Service identifier
+          schema:
+            type: string
+            enum: [anthropic, openai, jira, github, figma, datadog]
+      responses:
+        '200':
+          description: Credential deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '400':
+          description: Invalid service parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /oauth/{service}/connect:
+    get:
+      tags:
+        - Auth Service — Credentials
+      summary: Initiate OAuth connection for a service
+      description: Returns an OAuth authorization URL for the specified third-party service (Jira, GitHub, Figma, Datadog).
+      operationId: oauthConnect
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      servers:
+        - url: http://localhost:4001
+      parameters:
+        - name: service
+          in: path
+          required: true
+          description: OAuth service to connect
+          schema:
+            type: string
+            enum: [jira, github, figma, datadog]
+      responses:
+        '200':
+          description: Authorization URL
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - authUrl
+                properties:
+                  authUrl:
+                    type: string
+                    format: uri
+        '400':
+          description: Invalid service
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /oauth/{service}/callback:
+    get:
+      tags:
+        - Auth Service — Credentials
+      summary: OAuth callback for a service
+      description: Handles the OAuth redirect for third-party services. Exchanges the authorization code for tokens and stores them. Redirects to the dashboard settings page.
+      operationId: oauthCallback
+      servers:
+        - url: http://localhost:4001
+      parameters:
+        - name: service
+          in: path
+          required: true
+          description: OAuth service
+          schema:
+            type: string
+            enum: [jira, github, figma, datadog]
+        - name: code
+          in: query
+          required: true
+          description: Authorization code
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          description: CSRF state parameter (encodes userId)
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to dashboard settings
+          headers:
+            Location:
+              schema:
+                type: string
+        '400':
+          description: Missing code or state, or invalid service
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained after Google OAuth login. Used for auth-service endpoints and optionally for webhook attribution.
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: session_token
+      description: HttpOnly session cookie set after Google OAuth callback.
+
+  parameters:
+    FigmaSignature:
+      name: X-Figma-Signature
+      in: header
+      required: false
+      description: HMAC signature for Figma webhook payload verification
+      schema:
+        type: string
+    JiraSignature:
+      name: X-Hub-Signature
+      in: header
+      required: false
+      description: HMAC signature for Jira webhook payload verification
+      schema:
+        type: string
+    GitHubSignature:
+      name: X-Hub-Signature-256
+      in: header
+      required: false
+      description: HMAC-SHA256 signature for GitHub webhook payload verification
+      schema:
+        type: string
+    GitHubEvent:
+      name: X-GitHub-Event
+      in: header
+      required: true
+      description: 'GitHub event type (e.g. pull_request, deployment, push)'
+      schema:
+        type: string
+        example: pull_request
+    DatadogSignature:
+      name: X-Datadog-Signature
+      in: header
+      required: false
+      description: HMAC signature for Datadog webhook payload verification
+      schema:
+        type: string
+    OptionalAuthorization:
+      name: Authorization
+      in: header
+      required: false
+      description: 'Optional Bearer JWT token for user attribution (format: `Bearer <token>`)'
+      schema:
+        type: string
+        pattern: '^Bearer .+$'
+        example: 'Bearer eyJhbGciOiJIUzI1NiIs...'
+
+  schemas:
+    # ── Health ──────────────────────────────────
+    WebhookHealthResponse:
+      type: object
+      required:
+        - status
+        - service
+        - timestamp
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: webhook-listener
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-02-08T01:00:00.000Z'
+
+    AuthHealthResponse:
+      type: object
+      required:
+        - status
+        - service
+      properties:
+        status:
+          type: string
+          example: healthy
+        service:
+          type: string
+          example: auth-service
+
+    # ── Webhook Payloads ────────────────────────
+    FigmaWebhookPayload:
+      type: object
+      required:
+        - file_key
+        - file_name
+      properties:
+        event_type:
+          type: string
+          enum: [FILE_UPDATE, FILE_VERSION_UPDATE, FILE_COMMENT]
+          default: FILE_UPDATE
+          description: Type of Figma event
+        file_key:
+          type: string
+          minLength: 1
+          description: Figma file key identifier
+          example: abc123def456
+        file_name:
+          type: string
+          minLength: 1
+          description: Name of the Figma file
+          example: Design System v2
+        file_url:
+          type: string
+          format: uri
+          description: Optional direct URL to the Figma file
+          example: https://www.figma.com/file/abc123def456
+
+    JiraWebhookPayload:
+      type: object
+      properties:
+        webhookEvent:
+          type: string
+          default: issue_updated
+          description: Jira webhook event name
+          example: issue_updated
+        issue:
+          type: object
+          properties:
+            key:
+              type: string
+              minLength: 1
+              description: Jira issue key
+              example: PROJ-123
+            fields:
+              type: object
+              properties:
+                issuetype:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      example: Story
+                status:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      example: In Progress
+                summary:
+                  type: string
+                  example: Implement login page
+                description:
+                  type: string
+                  nullable: true
+                  example: As a user, I want to log in with my Google account
+              additionalProperties: true
+        changelog:
+          description: Jira changelog object (when fields change)
+          nullable: true
+      additionalProperties: true
+
+    GitHubWebhookPayload:
+      type: object
+      properties:
+        action:
+          type: string
+          description: The action that was performed
+          example: opened
+        repository:
+          type: object
+          properties:
+            full_name:
+              type: string
+              description: Full repository name (owner/repo)
+              example: rtb-team/ai-hub
+        pull_request:
+          type: object
+          properties:
+            number:
+              type: integer
+              description: Pull request number
+              example: 42
+            title:
+              type: string
+              description: Pull request title
+              example: 'feat: add authentication module'
+            head:
+              type: object
+              properties:
+                ref:
+                  type: string
+                  description: Branch name
+                  example: feature/auth
+                sha:
+                  type: string
+                  description: Head commit SHA
+                  example: a1b2c3d4e5f6
+        deployment:
+          type: object
+          properties:
+            ref:
+              type: string
+              description: Deployment ref (branch or tag)
+            sha:
+              type: string
+              description: Deployment commit SHA
+      additionalProperties: true
+
+    DatadogWebhookPayload:
+      type: object
+      required:
+        - title
+      properties:
+        event_type:
+          type: string
+          default: alert
+          description: Event type identifier
+          example: alert
+        id:
+          type: string
+          description: Datadog event ID
+        alert_id:
+          type: string
+          description: Datadog alert ID
+        title:
+          type: string
+          minLength: 1
+          description: Alert or event title
+          example: High error rate detected on api-gateway
+        body:
+          type: string
+          description: Event body text
+        message:
+          type: string
+          description: Alert message (alternative to body)
+        priority:
+          type: string
+          enum: [P1, P2, P3]
+          default: P2
+          description: Alert priority level
+        tags:
+          type: array
+          items:
+            type: string
+          description: Datadog tags
+          example: ['service:api-gateway', 'env:production']
+      additionalProperties: true
+
+    # ── Webhook Responses ───────────────────────
+    WebhookAcceptedResponse:
+      type: object
+      required:
+        - status
+        - eventId
+      properties:
+        status:
+          type: string
+          enum: [accepted]
+          example: accepted
+        eventId:
+          type: string
+          description: Identifier for the queued event (file_key, issue key, SHA, or alert ID depending on source)
+          example: abc123
+
+    # ── Auth Service Schemas ────────────────────
+    UserProfile:
+      type: object
+      required:
+        - id
+        - email
+        - name
+        - workspaceDomain
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: User ID
+        email:
+          type: string
+          format: email
+          example: user@company.com
+        name:
+          type: string
+          example: John Doe
+        picture:
+          type: string
+          format: uri
+          description: Google profile picture URL
+        workspaceDomain:
+          type: string
+          example: company.com
+
+    ApiKeyInput:
+      type: object
+      required:
+        - service
+        - apiKey
+      properties:
+        service:
+          type: string
+          enum: [anthropic, openai]
+          description: AI service provider
+          example: anthropic
+        apiKey:
+          type: string
+          minLength: 1
+          description: The API key to store (will be encrypted with AES-256-GCM)
+          example: sk-ant-api03-...
+
+    CredentialSummary:
+      type: object
+      required:
+        - service
+        - authType
+        - isConnected
+      properties:
+        service:
+          type: string
+          enum: [anthropic, openai, jira, github, figma, datadog]
+          description: Service name
+        authType:
+          type: string
+          enum: [api_key, oauth]
+          description: Authentication method
+        isConnected:
+          type: boolean
+          description: Whether the credential is active
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Token expiration (OAuth only)
+        scope:
+          type: string
+          nullable: true
+          description: Granted OAuth scopes
+        connectedAt:
+          type: string
+          format: date-time
+          description: When the credential was created
+
+    # ── Error Schemas ───────────────────────────
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: Internal server error
+
+    ValidationErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          example: Validation failed
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              path:
+                type: string
+                description: JSON path of the invalid field
+                example: file_key
+              message:
+                type: string
+                description: Validation error description
+                example: 'file_key is required'
+
+    RateLimitErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          example: Too many requests
+
+  responses:
+    InvalidSignature:
+      description: Webhook signature verification failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Invalid webhook signature
+
+    ValidationError:
+      description: Request body validation failed (Zod schema)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+          example:
+            error: Validation failed
+            details:
+              - path: file_key
+                message: 'file_key is required'
+
+    RateLimited:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RateLimitErrorResponse'
+          example:
+            error: Too many requests
+
+    Unauthorized:
+      description: Authentication required — missing or invalid session/token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Unauthorized
+
+    InternalError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Internal server error

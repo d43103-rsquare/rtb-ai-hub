@@ -25,7 +25,7 @@ export class OpenAIClient {
       maxTokens = 2000,
       temperature = 0.7,
       systemPrompt = 'You are a helpful AI assistant.',
-      model = 'gpt-4-turbo-preview',
+      model = process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
     } = options;
 
     try {

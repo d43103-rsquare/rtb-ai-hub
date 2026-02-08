@@ -1,11 +1,13 @@
 import { Pool } from 'pg';
-import { requireEnv, createLogger } from '@rtb-ai-hub/shared';
+import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { requireEnv, createLogger, dbSchema } from '@rtb-ai-hub/shared';
 import type { WorkflowExecution } from '@rtb-ai-hub/shared';
 
 const logger = createLogger('database');
 
 export class Database {
   private pool: Pool;
+  private _drizzle: NodePgDatabase<typeof dbSchema> | null = null;
 
   constructor() {
     this.pool = new Pool({
@@ -19,6 +21,13 @@ export class Database {
     this.pool.on('error', (err) => {
       logger.error({ err }, 'Unexpected database pool error');
     });
+  }
+
+  get drizzle(): NodePgDatabase<typeof dbSchema> {
+    if (!this._drizzle) {
+      this._drizzle = drizzle(this.pool, { schema: dbSchema });
+    }
+    return this._drizzle;
   }
 
   async saveWorkflowExecution(execution: Partial<WorkflowExecution>): Promise<void> {
@@ -95,6 +104,7 @@ export class Database {
 
   async close(): Promise<void> {
     await this.pool.end();
+    this._drizzle = null;
   }
 }
 

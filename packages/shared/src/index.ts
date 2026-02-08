@@ -17,3 +17,6 @@ export * from './utils';
 // Validation
 export * from './schemas';
 export * from './validation';
+
+// Database (Drizzle ORM)
+export * from './db';

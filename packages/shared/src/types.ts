@@ -98,6 +98,8 @@ export enum AIModel {
   CLAUDE_OPUS = 'claude-3-opus-20240229',
   CLAUDE_SONNET = 'claude-3-5-sonnet-20240620',
   CLAUDE_HAIKU = 'claude-3-haiku-20240307',
+  CLAUDE_SONNET_4 = 'claude-sonnet-4-20250514',
+  CLAUDE_HAIKU_4 = 'claude-haiku-4-20250414',
 }
 
 export enum AITier {

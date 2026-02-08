@@ -1,8 +1,8 @@
 import { Worker } from 'bullmq';
 import { QUEUE_NAMES, createLogger } from '@rtb-ai-hub/shared';
-import type { FigmaWebhookEvent } from '@rtb-ai-hub/shared';
+import type { FigmaWebhookEvent, GitHubWebhookEvent } from '@rtb-ai-hub/shared';
 import { createRedisConnection } from './connection';
-import { processFigmaToJira } from '../workflows';
+import { processFigmaToJira, processAutoReview } from '../workflows';
 
 const logger = createLogger('workers');
 
@@ -38,8 +38,16 @@ export function createWorkers() {
   const githubWorker = new Worker(
     QUEUE_NAMES.GITHUB,
     async (job) => {
-      logger.info({ jobId: job.id, data: job.data }, 'Processing GitHub event (placeholder)');
-      return { success: true, message: 'GitHub workflow not yet implemented' };
+      logger.info({ jobId: job.id }, 'Processing GitHub event');
+      try {
+        const { event, userId } = job.data as { event: GitHubWebhookEvent; userId: string | null };
+        const result = await processAutoReview(event, userId);
+        logger.info({ jobId: job.id, result, userId }, 'GitHub workflow completed');
+        return result;
+      } catch (error) {
+        logger.error({ jobId: job.id, error }, 'GitHub workflow failed');
+        throw error;
+      }
     },
     { connection, concurrency: 2 }
   );
@@ -59,6 +67,14 @@ export function createWorkers() {
 
   figmaWorker.on('failed', (job, error) => {
     logger.error({ jobId: job?.id, error }, 'Figma job failed');
+  });
+
+  githubWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'GitHub job completed');
+  });
+
+  githubWorker.on('failed', (job, error) => {
+    logger.error({ jobId: job?.id, error }, 'GitHub job failed');
   });
 
   return { figmaWorker, jiraWorker, githubWorker, datadogWorker };

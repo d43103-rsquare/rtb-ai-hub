@@ -8,12 +8,14 @@ import {
 } from '@rtb-ai-hub/shared';
 import type { DatadogWebhookEvent } from '@rtb-ai-hub/shared';
 import { optionalAuth, AuthRequest } from '../middleware/auth';
+import { verifyDatadogSignature } from '../middleware/webhook-signature';
 
 export function createDatadogRouter(datadogQueue: Queue) {
   const router = Router();
 
   router.post(
     '/webhooks/datadog',
+    verifyDatadogSignature,
     optionalAuth,
     validateBody(datadogWebhookSchema),
     async (req: AuthRequest, res) => {

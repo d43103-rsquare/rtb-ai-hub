@@ -4,6 +4,16 @@
   "description": "Shared types, constants, and utilities for RTB AI Hub",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./db/schema": {
+      "types": "./dist/db/schema.d.ts",
+      "default": "./dist/db/schema.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
@@ -11,11 +21,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "drizzle-orm": "^0.45.1",
+    "pg": "^8.18.0",
     "pino": "^9.0.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "@types/pg": "^8.16.0",
     "typescript": "^5.3.0"
   }
 }

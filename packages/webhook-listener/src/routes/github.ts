@@ -8,12 +8,14 @@ import {
 } from '@rtb-ai-hub/shared';
 import type { GitHubWebhookEvent } from '@rtb-ai-hub/shared';
 import { optionalAuth, AuthRequest } from '../middleware/auth';
+import { verifyGitHubSignature } from '../middleware/webhook-signature';
 
 export function createGitHubRouter(githubQueue: Queue) {
   const router = Router();
 
   router.post(
     '/webhooks/github',
+    verifyGitHubSignature,
     optionalAuth,
     validateBody(githubWebhookSchema),
     async (req: AuthRequest, res) => {

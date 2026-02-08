@@ -62,24 +62,28 @@ export class AnthropicClient {
   private getModelForTier(tier: AITier): string {
     switch (tier) {
       case AITier.HEAVY:
-        return 'claude-3-opus-20240229';
+        return process.env.AI_MODEL_HEAVY || 'claude-sonnet-4-20250514';
       case AITier.MEDIUM:
-        return 'claude-3-5-sonnet-20240620';
+        return process.env.AI_MODEL_MEDIUM || 'claude-sonnet-4-20250514';
       case AITier.LIGHT:
-        return 'claude-3-haiku-20240307';
+        return process.env.AI_MODEL_LIGHT || 'claude-haiku-4-20250414';
       default:
-        return 'claude-3-5-sonnet-20240620';
+        return process.env.AI_MODEL_MEDIUM || 'claude-sonnet-4-20250514';
     }
   }
 
   calculateCost(tokensInput: number, tokensOutput: number, model: string): number {
     const costs: Record<string, { input: number; output: number }> = {
+      // Latest models (2026)
+      'claude-sonnet-4-20250514': { input: 3.0, output: 15.0 },
+      'claude-haiku-4-20250414': { input: 0.8, output: 4.0 },
+      // Legacy models (backward compatibility)
       'claude-3-opus-20240229': { input: 15.0, output: 75.0 },
       'claude-3-5-sonnet-20240620': { input: 3.0, output: 15.0 },
       'claude-3-haiku-20240307': { input: 0.25, output: 1.25 },
     };
 
-    const modelCost = costs[model] || costs['claude-3-5-sonnet-20240620'];
+    const modelCost = costs[model] || costs['claude-sonnet-4-20250514'];
     return (tokensInput * modelCost.input + tokensOutput * modelCost.output) / 1_000_000;
   }
 }
