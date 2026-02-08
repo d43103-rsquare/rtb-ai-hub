@@ -12,11 +12,11 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - '${POSTGRES_PORT:-5432}:5432'
     networks:
       - rtb-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -28,11 +28,11 @@ services:
     volumes:
       - redis-data:/data
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - '${REDIS_PORT:-6379}:6379'
     networks:
       - rtb-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -55,31 +55,25 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-rtb_ai_hub}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      DEV_MODE: ${DEV_MODE:-true}
+      DEV_USER_EMAIL: ${DEV_USER_EMAIL:-dev@example.com}
+      DEV_USER_NAME: ${DEV_USER_NAME:-Dev User}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:4001/auth/google/callback}
-      ALLOWED_WORKSPACE_DOMAINS: ${ALLOWED_WORKSPACE_DOMAINS}
-      JWT_SECRET: ${JWT_SECRET}
-      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY}
+      ALLOWED_WORKSPACE_DOMAINS: ${ALLOWED_WORKSPACE_DOMAINS:-}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-minimum-32-characters-long}
       APP_URL: ${APP_URL:-http://localhost:4001}
       DASHBOARD_URL: ${DASHBOARD_URL:-http://localhost:3000}
-      JIRA_CLIENT_ID: ${JIRA_CLIENT_ID}
-      JIRA_CLIENT_SECRET: ${JIRA_CLIENT_SECRET}
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
-      FIGMA_CLIENT_ID: ${FIGMA_CLIENT_ID}
-      FIGMA_CLIENT_SECRET: ${FIGMA_CLIENT_SECRET}
-      DATADOG_CLIENT_ID: ${DATADOG_CLIENT_ID}
-      DATADOG_CLIENT_SECRET: ${DATADOG_CLIENT_SECRET}
     ports:
-      - "${AUTH_SERVICE_PORT:-4001}:4001"
+      - '${AUTH_SERVICE_PORT:-4001}:4001'
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - rtb-network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4001/health"]
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:4001/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -104,9 +98,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -115,7 +108,13 @@ services:
     networks:
       - rtb-network
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://localhost:3001/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -138,14 +137,14 @@ services:
       REDIS_PORT: 6379
       JWT_SECRET: ${JWT_SECRET}
     ports:
-      - "${WEBHOOK_PORT:-4000}:4000"
+      - '${WEBHOOK_PORT:-4000}:4000'
     depends_on:
       redis:
         condition: service_healthy
     networks:
       - rtb-network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4000/health"]
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:4000/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -164,14 +163,14 @@ services:
       NODE_ENV: ${NODE_ENV:-development}
       VITE_API_URL: http://localhost:4000
     ports:
-      - "${DASHBOARD_PORT:-3000}:80"
+      - '${DASHBOARD_PORT:-3000}:80'
     depends_on:
       webhook-listener:
         condition: service_healthy
     networks:
       - rtb-network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:80/']
       interval: 30s
       timeout: 10s
       retries: 3

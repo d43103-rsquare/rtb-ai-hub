@@ -1,7 +1,7 @@
 # RTB AI Hub — Development Roadmap & TODO
 
 > **Last Updated**: 2026-02-08
-> **Current Score**: ~7.5/10 (from 3.7/10 prototype)
+> **Current Score**: ~8.0/10 (from 3.7/10 prototype)
 > **Goal**: Production-ready autonomous dev team hub (8+/10)
 
 ---
@@ -66,37 +66,52 @@
 | P5-2 | Credential manager migration | Both auth-service and workflow-engine                                     |
 |      |                              | `query()`, `transaction()` utility functions retained for backward compat |
 
+## ✅ Completed (P6 — Auth Simplification)
+
+| #    | Item                                        | Commit    | Notes                                                           |
+| ---- | ------------------------------------------- | --------- | --------------------------------------------------------------- |
+| P6-1 | Remove credential tables from DB            | `20bb45a` | `userCredentials`, `credentialUsageLog`, `userSessions` 제거    |
+| P6-2 | Single AI account (env-based)               | `20bb45a` | `ANTHROPIC_API_KEY` 환경변수로 단일 운영                        |
+| P6-3 | JWT-only session (no DB sessions)           | `20bb45a` | `session.ts` 전면 재작성, DB 의존 제거                          |
+| P6-4 | DEV_MODE login bypass                       | `20bb45a` | `/auth/dev/login` 엔드포인트, 환경변수 기반 고정 계정           |
+| P6-5 | Remove credential management from dashboard | `20bb45a` | CredentialsPage 삭제, Sidebar/constants/types 정리              |
+| P6-6 | Remove encryption modules                   | `20bb45a` | `credential-manager.ts`, `encryption.ts` 삭제 (auth + workflow) |
+| P6-7 | Jira user resolver                          | `20bb45a` | 이메일 기반 Jira 사용자 매핑 유틸리티                           |
+| P6-8 | Clean up init.sql + docker-compose          | `—`       | credential 테이블/환경변수 제거                                 |
+
 ---
 
-## 🔮 Future Considerations (P6+)
+## 🔮 Future Considerations (P7+)
 
 | #     | Item                         | Priority | Notes                                                       |
 | ----- | ---------------------------- | -------- | ----------------------------------------------------------- |
-| P6-1  | E2E testing (Playwright)     | LOW      | Full workflow testing through UI                            |
-| P6-2  | Kubernetes manifests         | LOW      | Helm charts or kustomize for production                     |
-| P6-3  | Observability stack          | LOW      | Structured logging → ELK/Loki, metrics → Prometheus/Grafana |
-| P6-4  | Multi-tenant support         | LOW      | Org-level isolation, RBAC                                   |
-| P6-5  | Plugin architecture          | LOW      | Custom workflow steps, third-party integrations             |
-| P6-6  | Dashboard improvements       | LOW      | Real-time workflow monitoring, cost tracking charts         |
-| P6-7  | Webhook retry/DLQ            | LOW      | Dead letter queue for failed webhook processing             |
-| P6-8  | Database migrations CI       | LOW      | Automated migration check in CI pipeline                    |
-| P6-9  | MCP server integration tests | LOW      | Docker-based integration tests for MCP servers              |
-| P6-10 | MCP tool-use in workflows    | LOW      | Connect workflows to MCP servers for actual API calls       |
+| P7-1  | Google OAuth production      | MEDIUM   | DEV_MODE 해제 후 실제 Google OAuth 연동                     |
+| P7-2  | E2E testing (Playwright)     | LOW      | Full workflow testing through UI                            |
+| P7-3  | Kubernetes manifests         | LOW      | Helm charts or kustomize for production                     |
+| P7-4  | Observability stack          | LOW      | Structured logging → ELK/Loki, metrics → Prometheus/Grafana |
+| P7-5  | Multi-tenant support         | LOW      | Org-level isolation, RBAC                                   |
+| P7-6  | Plugin architecture          | LOW      | Custom workflow steps, third-party integrations             |
+| P7-7  | Dashboard improvements       | LOW      | Real-time workflow monitoring, cost tracking charts         |
+| P7-8  | Webhook retry/DLQ            | LOW      | Dead letter queue for failed webhook processing             |
+| P7-9  | Database migrations CI       | LOW      | Automated migration check in CI pipeline                    |
+| P7-10 | MCP server integration tests | LOW      | Docker-based integration tests for MCP servers              |
+| P7-11 | MCP tool-use in workflows    | LOW      | Connect workflows to MCP servers for actual API calls       |
 
 ---
 
 ## 📊 Progress Summary
 
-| Phase                 | Total  | Done   | Remaining |
-| --------------------- | ------ | ------ | --------- |
-| P0 — Guardrails       | 5      | 5      | 0         |
-| P1 — Production Ready | 7      | 7      | 0         |
-| P2 — Test Coverage    | 1      | 1      | 0         |
-| P3 — MCP Servers      | 5      | 5      | 0         |
-| P4 — Workflows        | 4      | 4      | 0         |
-| P5 — DB Maturity      | 2      | 2      | 0         |
-| P6 — Future           | 10     | 0      | 10        |
-| **Total**             | **34** | **24** | **10**    |
+| Phase                    | Total  | Done   | Remaining |
+| ------------------------ | ------ | ------ | --------- |
+| P0 — Guardrails          | 5      | 5      | 0         |
+| P1 — Production Ready    | 7      | 7      | 0         |
+| P2 — Test Coverage       | 1      | 1      | 0         |
+| P3 — MCP Servers         | 5      | 5      | 0         |
+| P4 — Workflows           | 4      | 4      | 0         |
+| P5 — DB Maturity         | 2      | 2      | 0         |
+| P6 — Auth Simplification | 8      | 8      | 0         |
+| P7 — Future              | 11     | 0      | 11        |
+| **Total**                | **43** | **32** | **11**    |
 
 ---
 
@@ -105,7 +120,7 @@
 ```bash
 # Build & Test
 pnpm build              # Full monorepo build
-pnpm test               # Run all 177 tests
+pnpm test               # Run all 140 tests
 pnpm lint               # ESLint check
 pnpm format:check       # Prettier check
 pnpm typecheck          # TypeScript strict check
@@ -130,7 +145,18 @@ pnpm docker:logs        # View logs
 
 ## 📝 Environment Variables
 
-### Core (P0/P1)
+### Auth & Dev Mode (P6)
+
+| Variable            | Description                                | Required               |
+| ------------------- | ------------------------------------------ | ---------------------- |
+| `DEV_MODE`          | Enable dev login bypass (`true`/`false`)   | No (default: `false`)  |
+| `DEV_USER_EMAIL`    | Fixed dev user email                       | Yes (if DEV_MODE=true) |
+| `DEV_USER_NAME`     | Fixed dev user display name                | Yes (if DEV_MODE=true) |
+| `ANTHROPIC_API_KEY` | Anthropic API key (shared, single account) | Yes (for AI workflows) |
+| `OPENAI_API_KEY`    | OpenAI API key (shared, single account)    | No                     |
+| `JWT_SECRET`        | JWT signing secret (min 32 chars)          | Yes                    |
+
+### AI Models (P1)
 
 | Variable                 | Description                                         | Required            |
 | ------------------------ | --------------------------------------------------- | ------------------- |
