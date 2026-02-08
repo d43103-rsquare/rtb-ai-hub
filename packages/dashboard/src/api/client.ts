@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../utils/constants';
-import type { User, Credential, ApiKeyInput } from '../types';
+import type { User } from '../types';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -27,29 +27,6 @@ export const authApi = {
 
   refreshToken: async (): Promise<void> => {
     await apiClient.post('/auth/refresh');
-  },
-};
-
-export const credentialsApi = {
-  getAll: async (): Promise<Credential[]> => {
-    const { data } = await apiClient.get<Credential[]>('/credentials');
-    return data;
-  },
-
-  addApiKey: async (input: ApiKeyInput): Promise<Credential> => {
-    const { data } = await apiClient.post<Credential>('/credentials/api-key', input);
-    return data;
-  },
-
-  deleteCredential: async (service: string): Promise<void> => {
-    await apiClient.delete(`/credentials/${service}`);
-  },
-};
-
-export const oauthApi = {
-  getConnectUrl: async (service: string): Promise<string> => {
-    const { data } = await apiClient.get<{ authUrl: string }>(`/oauth/${service}/connect`);
-    return data.authUrl;
   },
 };
 

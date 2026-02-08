@@ -9,7 +9,6 @@ import {
   decimal,
   timestamp,
   index,
-  unique,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -123,77 +122,6 @@ export const users = pgTable(
   ]
 );
 
-// ─── user_credentials ───────────────────────────────────────────────────────────
-
-export const userCredentials = pgTable(
-  'user_credentials',
-  {
-    id: varchar('id', { length: 255 }).primaryKey(),
-    userId: varchar('user_id', { length: 255 }).notNull(),
-    service: varchar('service', { length: 50 }).notNull(),
-    authType: varchar('auth_type', { length: 20 }).notNull(),
-    apiKeyEncrypted: text('api_key_encrypted'),
-    accessToken: text('access_token'),
-    refreshToken: text('refresh_token'),
-    tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }),
-    scope: text('scope'),
-    isActive: boolean('is_active').notNull().default(true),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => [
-    index('idx_user_credentials_user_id').on(table.userId),
-    index('idx_user_credentials_service').on(table.service),
-    index('idx_user_credentials_auth_type').on(table.authType),
-    unique('user_credentials_user_id_service_unique').on(table.userId, table.service),
-  ]
-);
-
-// ─── credential_usage_log ───────────────────────────────────────────────────────
-
-export const credentialUsageLog = pgTable(
-  'credential_usage_log',
-  {
-    id: varchar('id', { length: 255 }).primaryKey(),
-    userId: varchar('user_id', { length: 255 }),
-    service: varchar('service', { length: 50 }).notNull(),
-    action: varchar('action', { length: 50 }).notNull(),
-    ipAddress: varchar('ip_address', { length: 50 }),
-    userAgent: text('user_agent'),
-    success: boolean('success').notNull().default(true),
-    errorMessage: text('error_message'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => [
-    index('idx_credential_usage_log_user_id').on(table.userId),
-    index('idx_credential_usage_log_service').on(table.service),
-    index('idx_credential_usage_log_action').on(table.action),
-    index('idx_credential_usage_log_created_at').on(table.createdAt),
-  ]
-);
-
-// ─── user_sessions ──────────────────────────────────────────────────────────────
-
-export const userSessions = pgTable(
-  'user_sessions',
-  {
-    id: varchar('id', { length: 255 }).primaryKey(),
-    userId: varchar('user_id', { length: 255 }).notNull(),
-    sessionToken: varchar('session_token', { length: 512 }).unique().notNull(),
-    refreshToken: varchar('refresh_token', { length: 512 }).unique(),
-    ipAddress: varchar('ip_address', { length: 50 }),
-    userAgent: text('user_agent'),
-    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    lastActivity: timestamp('last_activity', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => [
-    index('idx_user_sessions_user_id').on(table.userId),
-    index('idx_user_sessions_session_token').on(table.sessionToken),
-    index('idx_user_sessions_expires_at').on(table.expiresAt),
-  ]
-);
-
 // ─── Relations ──────────────────────────────────────────────────────────────────
 
 export const workflowExecutionsRelations = relations(workflowExecutions, ({ one, many }) => ({
@@ -220,29 +148,5 @@ export const aiCostsRelations = relations(aiCosts, ({ one }) => ({
 }));
 
 export const usersRelations = relations(users, ({ many }) => ({
-  credentials: many(userCredentials),
-  sessions: many(userSessions),
-  credentialUsageLogs: many(credentialUsageLog),
   workflowExecutions: many(workflowExecutions),
-}));
-
-export const userCredentialsRelations = relations(userCredentials, ({ one }) => ({
-  user: one(users, {
-    fields: [userCredentials.userId],
-    references: [users.id],
-  }),
-}));
-
-export const credentialUsageLogRelations = relations(credentialUsageLog, ({ one }) => ({
-  user: one(users, {
-    fields: [credentialUsageLog.userId],
-    references: [users.id],
-  }),
-}));
-
-export const userSessionsRelations = relations(userSessions, ({ one }) => ({
-  user: one(users, {
-    fields: [userSessions.userId],
-    references: [users.id],
-  }),
 }));

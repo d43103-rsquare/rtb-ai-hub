@@ -6,7 +6,6 @@ import { LoadingSpinner } from './components/common/LoadingSpinner';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
-import { CredentialsPage } from './pages/CredentialsPage';
 import { WorkflowsPage } from './pages/WorkflowsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { ROUTES } from './utils/constants';
@@ -35,16 +34,6 @@ function AppRoutes() {
           <ProtectedRoute>
             <Layout>
               <DashboardPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path={ROUTES.CREDENTIALS}
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <CredentialsPage />
             </Layout>
           </ProtectedRoute>
         }

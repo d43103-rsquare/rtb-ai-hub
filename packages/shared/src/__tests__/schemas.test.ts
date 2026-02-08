@@ -4,9 +4,6 @@ import {
   jiraWebhookSchema,
   githubWebhookSchema,
   datadogWebhookSchema,
-  apiKeyInputSchema,
-  oauthServiceSchema,
-  credentialServiceSchema,
 } from '../schemas';
 
 describe('figmaWebhookSchema', () => {
@@ -208,80 +205,6 @@ describe('datadogWebhookSchema', () => {
       title: 'Alert',
       priority: 'P4',
     });
-    expect(result.success).toBe(false);
-  });
-});
-
-describe('apiKeyInputSchema', () => {
-  it('validates anthropic service', () => {
-    const result = apiKeyInputSchema.safeParse({
-      service: 'anthropic',
-      apiKey: 'sk-ant-api03-xxx',
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it('validates openai service', () => {
-    const result = apiKeyInputSchema.safeParse({
-      service: 'openai',
-      apiKey: 'sk-xxx',
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it('fails on invalid service', () => {
-    const result = apiKeyInputSchema.safeParse({
-      service: 'invalid',
-      apiKey: 'key',
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('fails when apiKey is empty', () => {
-    const result = apiKeyInputSchema.safeParse({
-      service: 'anthropic',
-      apiKey: '',
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('fails when apiKey is missing', () => {
-    const result = apiKeyInputSchema.safeParse({
-      service: 'anthropic',
-    });
-    expect(result.success).toBe(false);
-  });
-});
-
-describe('oauthServiceSchema', () => {
-  const validServices = ['jira', 'github', 'figma', 'datadog'] as const;
-
-  it.each(validServices)('accepts valid service: %s', (service) => {
-    const result = oauthServiceSchema.safeParse(service);
-    expect(result.success).toBe(true);
-  });
-
-  it('rejects invalid service', () => {
-    const result = oauthServiceSchema.safeParse('invalid');
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects api-key-only services', () => {
-    const result = oauthServiceSchema.safeParse('anthropic');
-    expect(result.success).toBe(false);
-  });
-});
-
-describe('credentialServiceSchema', () => {
-  const allServices = ['anthropic', 'openai', 'jira', 'github', 'figma', 'datadog'] as const;
-
-  it.each(allServices)('accepts valid service: %s', (service) => {
-    const result = credentialServiceSchema.safeParse(service);
-    expect(result.success).toBe(true);
-  });
-
-  it('rejects invalid service', () => {
-    const result = credentialServiceSchema.safeParse('unknown');
     expect(result.success).toBe(false);
   });
 });

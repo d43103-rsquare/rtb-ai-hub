@@ -6,16 +6,10 @@ import {
   metrics,
   aiCosts,
   users,
-  userCredentials,
-  credentialUsageLog,
-  userSessions,
   workflowExecutionsRelations,
   webhookEventsRelations,
   aiCostsRelations,
   usersRelations,
-  userCredentialsRelations,
-  credentialUsageLogRelations,
-  userSessionsRelations,
 } from '../db/schema';
 
 describe('DB Schema', () => {
@@ -43,21 +37,6 @@ describe('DB Schema', () => {
     it('exports users with correct table name', () => {
       expect(users).toBeDefined();
       expect(getTableName(users)).toBe('users');
-    });
-
-    it('exports userCredentials with correct table name', () => {
-      expect(userCredentials).toBeDefined();
-      expect(getTableName(userCredentials)).toBe('user_credentials');
-    });
-
-    it('exports credentialUsageLog with correct table name', () => {
-      expect(credentialUsageLog).toBeDefined();
-      expect(getTableName(credentialUsageLog)).toBe('credential_usage_log');
-    });
-
-    it('exports userSessions with correct table name', () => {
-      expect(userSessions).toBeDefined();
-      expect(getTableName(userSessions)).toBe('user_sessions');
     });
   });
 
@@ -102,20 +81,6 @@ describe('DB Schema', () => {
       expect(columns.lastLogin).toBeDefined();
     });
 
-    it('userCredentials has required columns', () => {
-      const columns = userCredentials;
-      expect(columns.id).toBeDefined();
-      expect(columns.userId).toBeDefined();
-      expect(columns.service).toBeDefined();
-      expect(columns.authType).toBeDefined();
-      expect(columns.apiKeyEncrypted).toBeDefined();
-      expect(columns.accessToken).toBeDefined();
-      expect(columns.refreshToken).toBeDefined();
-      expect(columns.tokenExpiresAt).toBeDefined();
-      expect(columns.scope).toBeDefined();
-      expect(columns.isActive).toBeDefined();
-    });
-
     it('aiCosts has required columns', () => {
       const columns = aiCosts;
       expect(columns.id).toBeDefined();
@@ -133,30 +98,6 @@ describe('DB Schema', () => {
       expect(columns.value).toBeDefined();
       expect(columns.metadata).toBeDefined();
     });
-
-    it('credentialUsageLog has required columns', () => {
-      const columns = credentialUsageLog;
-      expect(columns.id).toBeDefined();
-      expect(columns.userId).toBeDefined();
-      expect(columns.service).toBeDefined();
-      expect(columns.action).toBeDefined();
-      expect(columns.ipAddress).toBeDefined();
-      expect(columns.userAgent).toBeDefined();
-      expect(columns.success).toBeDefined();
-      expect(columns.errorMessage).toBeDefined();
-    });
-
-    it('userSessions has required columns', () => {
-      const columns = userSessions;
-      expect(columns.id).toBeDefined();
-      expect(columns.userId).toBeDefined();
-      expect(columns.sessionToken).toBeDefined();
-      expect(columns.refreshToken).toBeDefined();
-      expect(columns.ipAddress).toBeDefined();
-      expect(columns.userAgent).toBeDefined();
-      expect(columns.expiresAt).toBeDefined();
-      expect(columns.lastActivity).toBeDefined();
-    });
   });
 
   describe('Relations', () => {
@@ -165,9 +106,6 @@ describe('DB Schema', () => {
       expect(webhookEventsRelations).toBeDefined();
       expect(aiCostsRelations).toBeDefined();
       expect(usersRelations).toBeDefined();
-      expect(userCredentialsRelations).toBeDefined();
-      expect(credentialUsageLogRelations).toBeDefined();
-      expect(userSessionsRelations).toBeDefined();
     });
   });
 });

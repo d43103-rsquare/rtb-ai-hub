@@ -4,12 +4,9 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { createLogger, getEnv } from '@rtb-ai-hub/shared';
 import { GoogleAuthManager } from './google/google-auth';
-import { CredentialManager } from './credential/credential-manager';
-import { OAuthManager } from './oauth/oauth-providers';
 import { SessionManager } from './utils/session';
 import { createAuthMiddleware } from './middleware/auth';
 import { createGoogleRoutes } from './routes/google';
-import { createCredentialRoutes } from './routes/credentials';
 
 const logger = createLogger('auth-service');
 
@@ -28,35 +25,51 @@ async function main() {
   app.use(cookieParser());
 
   const googleAuth = new GoogleAuthManager();
-  const credentialManager = new CredentialManager();
-  const oauthManager = new OAuthManager(credentialManager);
   const sessionManager = new SessionManager();
-
   const authMiddleware = createAuthMiddleware(sessionManager);
 
-  // Health check must be before any auth middleware
   app.get('/health', (req, res) => {
-    res.json({ status: 'healthy', service: 'auth-service' });
+    res.json({
+      status: 'healthy',
+      service: 'auth-service',
+      devMode: getEnv('DEV_MODE', 'false') === 'true',
+    });
+  });
+
+  app.get('/auth/dev/login', (req, res) => {
+    const devSession = SessionManager.createDevSession();
+    if (!devSession) {
+      res.status(403).json({ error: 'DEV_MODE is not enabled' });
+      return;
+    }
+
+    res.cookie('session_token', devSession.sessionToken, {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+
+    res.cookie('refresh_token', devSession.refreshToken, {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      maxAge: 365 * 24 * 60 * 60 * 1000,
+    });
+
+    const redirectUrl = getEnv('DASHBOARD_URL', 'http://localhost:3000');
+    res.redirect(`${redirectUrl}/dashboard?login=dev`);
   });
 
   app.use(createGoogleRoutes(googleAuth, sessionManager));
-  app.use(authMiddleware, createCredentialRoutes(credentialManager, oauthManager));
 
   app.get('/api/me', authMiddleware, async (req: any, res) => {
     try {
-      const user = await googleAuth.getUserById(req.user.userId);
-
-      if (!user) {
-        res.status(404).json({ error: 'User not found' });
-        return;
-      }
-
+      const payload = req.user;
       res.json({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        picture: user.picture,
-        workspaceDomain: user.workspaceDomain,
+        id: payload.userId,
+        email: payload.email,
+        name: (payload as any).name || payload.email.split('@')[0],
       });
     } catch (error) {
       logger.error({ error }, 'Failed to get user info');
@@ -64,17 +77,15 @@ async function main() {
     }
   });
 
-  setInterval(
-    () => {
-      sessionManager.cleanupExpiredSessions().catch((error) => {
-        logger.error({ error }, 'Failed to cleanup expired sessions');
-      });
-    },
-    60 * 60 * 1000
-  );
-
   app.listen(port, () => {
-    logger.info({ port }, 'Auth service started');
+    const devMode = getEnv('DEV_MODE', 'false') === 'true';
+    logger.info({ port, devMode }, 'Auth service started');
+    if (devMode) {
+      logger.info(
+        { loginUrl: `http://localhost:${port}/auth/dev/login` },
+        'DEV_MODE enabled — use /auth/dev/login for auto-login'
+      );
+    }
   });
 }
 

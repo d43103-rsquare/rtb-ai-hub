@@ -9,7 +9,6 @@ interface SidebarProps {
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const navItems = [
     { to: ROUTES.DASHBOARD, icon: '📊', label: 'Dashboard' },
-    { to: ROUTES.CREDENTIALS, icon: '🔑', label: 'Credentials' },
     { to: ROUTES.WORKFLOWS, icon: '⚡', label: 'Workflows' },
     { to: ROUTES.PROFILE, icon: '👤', label: 'Profile' },
   ];

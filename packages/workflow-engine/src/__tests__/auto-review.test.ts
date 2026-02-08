@@ -6,7 +6,6 @@ const mockGenerateText = vi.fn();
 const mockCalculateCost = vi.fn();
 const mockSaveWorkflowExecution = vi.fn();
 const mockSaveAICost = vi.fn();
-const mockGetApiKey = vi.fn();
 
 vi.mock('@rtb-ai-hub/shared', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@rtb-ai-hub/shared')>();
@@ -27,10 +26,6 @@ vi.mock('../clients/anthropic', () => ({
     generateText: mockGenerateText,
     calculateCost: mockCalculateCost,
   },
-  AnthropicClient: class MockAnthropicClient {
-    generateText = mockGenerateText;
-    calculateCost = mockCalculateCost;
-  },
 }));
 
 vi.mock('../clients/database', () => ({
@@ -39,14 +34,6 @@ vi.mock('../clients/database', () => ({
     saveAICost: mockSaveAICost,
   },
 }));
-
-vi.mock('../credential/credential-manager', () => {
-  return {
-    CredentialManager: class MockCredentialManager {
-      getApiKey = mockGetApiKey;
-    },
-  };
-});
 
 const mockEvent: GitHubWebhookEvent = {
   source: 'github',
@@ -120,21 +107,10 @@ describe('processAutoReview', () => {
     expect(result.review.suggestions).toEqual([]);
   });
 
-  it('uses user-specific API key when userId provided', async () => {
-    mockGetApiKey.mockResolvedValue('user-specific-key');
-
-    await processAutoReview(mockEvent, 'user-123');
-
-    expect(mockGetApiKey).toHaveBeenCalledWith('user-123', 'anthropic');
-  });
-
-  it('falls back to default client when user key retrieval fails', async () => {
-    mockGetApiKey.mockRejectedValue(new Error('API key not found'));
-
+  it('uses shared env-based API key for all users', async () => {
     const result = await processAutoReview(mockEvent, 'user-123');
-
     expect(result.success).toBe(true);
-    expect(mockGetApiKey).toHaveBeenCalledWith('user-123', 'anthropic');
+    expect(mockGenerateText).toHaveBeenCalledTimes(1);
   });
 
   it('saves workflow execution on start and on completion', async () => {

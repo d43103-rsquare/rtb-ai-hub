@@ -1,37 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../components/common/Card';
 import { ROUTES } from '../utils/constants';
-import { credentialsApi } from '../api/client';
-import type { Credential } from '../types';
 
 export function DashboardPage() {
-  const [credentials, setCredentials] = useState<Credential[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadCredentials();
-  }, []);
-
-  const loadCredentials = async () => {
-    try {
-      const data = await credentialsApi.getAll();
-      setCredentials(data);
-    } catch (error) {
-      console.error('Failed to load credentials:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [loading] = useState(false);
 
   const stats = [
-    {
-      label: 'Connected Services',
-      value: credentials.length,
-      icon: '🔗',
-      color: 'bg-blue-500',
-      link: ROUTES.CREDENTIALS,
-    },
     {
       label: 'Workflows Run',
       value: 0,
@@ -45,13 +20,6 @@ export function DashboardPage() {
       icon: '💰',
       color: 'bg-purple-500',
       link: ROUTES.WORKFLOWS,
-    },
-    {
-      label: 'Active APIs',
-      value: credentials.filter((c) => c.isActive).length,
-      icon: '🔑',
-      color: 'bg-orange-500',
-      link: ROUTES.CREDENTIALS,
     },
   ];
 
@@ -98,26 +66,14 @@ export function DashboardPage() {
           <h2 className="text-xl font-bold text-gray-900 mb-4">Quick Actions</h2>
           <div className="space-y-3">
             <Link
-              to={ROUTES.CREDENTIALS}
+              to={ROUTES.WORKFLOWS}
               className="block p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all"
             >
               <div className="flex items-center gap-3">
-                <span className="text-2xl">🔑</span>
+                <span className="text-2xl">⚡</span>
                 <div>
-                  <div className="font-semibold text-gray-900">Add API Keys</div>
-                  <div className="text-sm text-gray-600">Configure Anthropic or OpenAI</div>
-                </div>
-              </div>
-            </Link>
-            <Link
-              to={ROUTES.CREDENTIALS}
-              className="block p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all"
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">🔗</span>
-                <div>
-                  <div className="font-semibold text-gray-900">Connect Services</div>
-                  <div className="text-sm text-gray-600">Link Jira, GitHub, Figma, Datadog</div>
+                  <div className="font-semibold text-gray-900">View Workflows</div>
+                  <div className="text-sm text-gray-600">Monitor and manage AI workflows</div>
                 </div>
               </div>
             </Link>

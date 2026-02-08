@@ -46,18 +46,22 @@ export function ProfilePage() {
                 <span className="text-gray-500">User ID</span>
                 <div className="font-mono text-gray-900">{user.id}</div>
               </div>
-              <div>
-                <span className="text-gray-500">Member Since</span>
-                <div className="font-medium text-gray-900">
-                  {format(new Date(user.createdAt), 'MMM dd, yyyy')}
+              {user.createdAt && (
+                <div>
+                  <span className="text-gray-500">Member Since</span>
+                  <div className="font-medium text-gray-900">
+                    {format(new Date(user.createdAt), 'MMM dd, yyyy')}
+                  </div>
                 </div>
-              </div>
-              <div>
-                <span className="text-gray-500">Last Login</span>
-                <div className="font-medium text-gray-900">
-                  {format(new Date(user.lastLogin), 'MMM dd, yyyy HH:mm')}
+              )}
+              {user.lastLogin && (
+                <div>
+                  <span className="text-gray-500">Last Login</span>
+                  <div className="font-medium text-gray-900">
+                    {format(new Date(user.lastLogin), 'MMM dd, yyyy HH:mm')}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>

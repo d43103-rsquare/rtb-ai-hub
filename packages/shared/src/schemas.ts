@@ -76,22 +76,3 @@ export const datadogWebhookSchema = z
     tags: z.array(z.string()).optional(),
   })
   .passthrough();
-
-// Auth-service: API key input
-export const apiKeyInputSchema = z.object({
-  service: z.enum(['anthropic', 'openai']),
-  apiKey: z.string().min(1, 'apiKey is required'),
-});
-
-// Auth-service: OAuth service param
-export const oauthServiceSchema = z.enum(['jira', 'github', 'figma', 'datadog']);
-
-// Auth-service: credential service param
-export const credentialServiceSchema = z.enum([
-  'anthropic',
-  'openai',
-  'jira',
-  'github',
-  'figma',
-  'datadog',
-]);

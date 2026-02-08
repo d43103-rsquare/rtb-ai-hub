@@ -3,19 +3,9 @@ export interface User {
   email: string;
   name: string;
   picture?: string;
-  workspaceDomain: string;
-  createdAt: string;
-  lastLogin: string;
-}
-
-export interface Credential {
-  id: string;
-  userId: string;
-  service: ServiceType;
-  isActive: boolean;
-  createdAt: string;
-  lastUsed?: string;
-  metadata?: Record<string, unknown>;
+  workspaceDomain?: string;
+  createdAt?: string;
+  lastLogin?: string;
 }
 
 export type ServiceType = 'anthropic' | 'openai' | 'jira' | 'github' | 'figma' | 'datadog';
@@ -40,16 +30,4 @@ export interface AuthContextType {
   login: () => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
-}
-
-export interface ApiKeyInput {
-  service: 'anthropic' | 'openai';
-  apiKey: string;
-}
-
-export interface OAuthService {
-  name: ServiceType;
-  displayName: string;
-  icon: string;
-  connected: boolean;
 }

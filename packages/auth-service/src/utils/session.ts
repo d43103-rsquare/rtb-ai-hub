@@ -1,12 +1,9 @@
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
-import { createLogger, requireEnv, generateId, JWTPayload, UserSession } from '@rtb-ai-hub/shared';
-import { query } from './database';
+import { createLogger, requireEnv, getEnv, JWTPayload } from '@rtb-ai-hub/shared';
 
 const logger = createLogger('session');
 
-const SESSION_DURATION = 7 * 24 * 60 * 60;
-const _REFRESH_TOKEN_DURATION = 30 * 24 * 60 * 60;
+const SESSION_DURATION = 7 * 24 * 60 * 60; // 7 days
 
 export class SessionManager {
   private jwtSecret: string;
@@ -18,78 +15,25 @@ export class SessionManager {
   async createSession(
     userId: string,
     email: string,
-    metadata?: { ipAddress?: string; userAgent?: string }
+    _metadata?: { ipAddress?: string; userAgent?: string }
   ): Promise<{ sessionToken: string; refreshToken: string }> {
-    const sessionId = generateId('session');
+    const sessionId = `session_${Date.now()}`;
 
-    const sessionToken = jwt.sign(
-      {
-        userId,
-        email,
-        sessionId,
-      } as JWTPayload,
-      this.jwtSecret,
-      {
-        expiresIn: SESSION_DURATION,
-      }
-    );
+    const sessionToken = jwt.sign({ userId, email, sessionId } as JWTPayload, this.jwtSecret, {
+      expiresIn: SESSION_DURATION,
+    });
 
-    const refreshToken = this.generateRefreshToken();
-    const expiresAt = new Date(Date.now() + SESSION_DURATION * 1000);
-
-    await query(
-      `
-      INSERT INTO user_sessions 
-        (id, user_id, session_token, refresh_token, ip_address, user_agent, expires_at, created_at, last_activity)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
-      `,
-      [
-        sessionId,
-        userId,
-        sessionToken,
-        refreshToken,
-        metadata?.ipAddress || null,
-        metadata?.userAgent || null,
-        expiresAt,
-      ]
-    );
+    const refreshToken = jwt.sign({ userId, email, sessionId, type: 'refresh' }, this.jwtSecret, {
+      expiresIn: 30 * 24 * 60 * 60,
+    });
 
     logger.info({ userId, sessionId }, 'Session created');
-
     return { sessionToken, refreshToken };
   }
 
   async verifySession(sessionToken: string): Promise<JWTPayload> {
     try {
-      const payload = jwt.verify(sessionToken, this.jwtSecret) as JWTPayload;
-
-      const session = await query<UserSession>(
-        `
-        SELECT id, user_id as "userId", expires_at as "expiresAt"
-        FROM user_sessions
-        WHERE session_token = $1
-        `,
-        [sessionToken]
-      );
-
-      if (!session[0]) {
-        throw new Error('Session not found');
-      }
-
-      if (new Date(session[0].expiresAt) < new Date()) {
-        throw new Error('Session expired');
-      }
-
-      await query(
-        `
-        UPDATE user_sessions
-        SET last_activity = NOW()
-        WHERE id = $1
-        `,
-        [session[0].id]
-      );
-
-      return payload;
+      return jwt.verify(sessionToken, this.jwtSecret) as JWTPayload;
     } catch (error) {
       logger.error({ error }, 'Session verification failed');
       throw new Error('Invalid session');
@@ -100,69 +44,56 @@ export class SessionManager {
     sessionToken: string;
     refreshToken: string;
   }> {
-    const session = await query<{
-      id: string;
-      user_id: string;
-      email: string;
-    }>(
-      `
-      SELECT s.id, s.user_id, u.email
-      FROM user_sessions s
-      JOIN users u ON s.user_id = u.id
-      WHERE s.refresh_token = $1 AND s.expires_at > NOW()
-      `,
-      [refreshToken]
-    );
-
-    if (!session[0]) {
+    try {
+      const payload = jwt.verify(refreshToken, this.jwtSecret) as JWTPayload & { type?: string };
+      if (payload.type !== 'refresh') {
+        throw new Error('Not a refresh token');
+      }
+      return await this.createSession(payload.userId, payload.email);
+    } catch (error) {
+      logger.error({ error }, 'Token refresh failed');
       throw new Error('Invalid or expired refresh token');
     }
-
-    await this.deleteSession(session[0].id);
-
-    const newSession = await this.createSession(session[0].user_id, session[0].email);
-
-    logger.info({ userId: session[0].user_id }, 'Session refreshed');
-
-    return newSession;
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    await query(
-      `
-      DELETE FROM user_sessions
-      WHERE id = $1
-      `,
-      [sessionId]
-    );
-
-    logger.info({ sessionId }, 'Session deleted');
+    logger.info({ sessionId }, 'Session invalidated (client-side)');
   }
 
-  async deleteUserSessions(userId: string): Promise<void> {
-    await query(
-      `
-      DELETE FROM user_sessions
-      WHERE user_id = $1
-      `,
-      [userId]
+  /**
+   * Create a dev session for DEV_MODE bypass.
+   * When DEV_MODE=true and DEV_USER_EMAIL is set, returns a pre-signed JWT.
+   */
+  static createDevSession(): { sessionToken: string; refreshToken: string } | null {
+    const devMode = getEnv('DEV_MODE', 'false') === 'true';
+    const devEmail = getEnv('DEV_USER_EMAIL', '');
+    const devName = getEnv('DEV_USER_NAME', 'Dev User');
+
+    if (!devMode || !devEmail) {
+      return null;
+    }
+
+    const jwtSecret = requireEnv('JWT_SECRET');
+    const devUserId = `dev_${devEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+    const sessionToken = jwt.sign(
+      {
+        userId: devUserId,
+        email: devEmail,
+        sessionId: 'dev_session',
+        name: devName,
+      } as JWTPayload & { name: string },
+      jwtSecret,
+      { expiresIn: 30 * 24 * 60 * 60 }
     );
 
-    logger.info({ userId }, 'All user sessions deleted');
-  }
-
-  async cleanupExpiredSessions(): Promise<void> {
-    const result = await query(
-      `
-      DELETE FROM user_sessions
-      WHERE expires_at < NOW()
-      `
+    const refreshToken = jwt.sign(
+      { userId: devUserId, email: devEmail, sessionId: 'dev_session', type: 'refresh' },
+      jwtSecret,
+      { expiresIn: 365 * 24 * 60 * 60 }
     );
 
-    logger.info({ count: result.length }, 'Expired sessions cleaned up');
-  }
-
-  private generateRefreshToken(): string {
-    return crypto.randomBytes(64).toString('base64url');
+    logger.info({ devEmail, devUserId }, 'Dev session created');
+    return { sessionToken, refreshToken };
   }
 }

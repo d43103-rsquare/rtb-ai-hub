@@ -1,11 +1,9 @@
 import { createLogger, generateId, WorkflowStatus, WorkflowType, AITier } from '@rtb-ai-hub/shared';
 import type { DatadogWebhookEvent, WorkflowExecution } from '@rtb-ai-hub/shared';
-import { anthropicClient, AnthropicClient } from '../clients/anthropic';
+import { anthropicClient } from '../clients/anthropic';
 import { database } from '../clients/database';
-import { CredentialManager } from '../credential/credential-manager';
 
 const logger = createLogger('incident-to-jira-workflow');
-const credentialManager = new CredentialManager();
 
 export async function processIncidentToJira(
   event: DatadogWebhookEvent,
@@ -16,17 +14,7 @@ export async function processIncidentToJira(
 
   logger.info({ event, executionId, userId }, 'Starting incident-to-jira workflow');
 
-  let aiClient = anthropicClient;
-
-  if (userId) {
-    try {
-      const anthropicKey = await credentialManager.getApiKey(userId, 'anthropic');
-      aiClient = new AnthropicClient(anthropicKey);
-      logger.info({ userId, executionId }, 'Using user-specific Anthropic API key');
-    } catch (error) {
-      logger.warn({ userId, error }, 'Failed to get user API key, falling back to default');
-    }
-  }
+  const aiClient = anthropicClient;
 
   const execution: Partial<WorkflowExecution> = {
     id: executionId,
