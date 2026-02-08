@@ -1,10 +1,4 @@
-import {
-  createLogger,
-  generateId,
-  WorkflowStatus,
-  WorkflowType,
-  AITier,
-} from '@rtb-ai-hub/shared';
+import { createLogger, generateId, WorkflowStatus, WorkflowType, AITier } from '@rtb-ai-hub/shared';
 import type { FigmaWebhookEvent, WorkflowExecution } from '@rtb-ai-hub/shared';
 import { anthropicClient, AnthropicClient } from '../clients/anthropic';
 import { database } from '../clients/database';
@@ -30,10 +24,7 @@ export async function processFigmaToJira(
       aiClient = new AnthropicClient(anthropicKey);
       logger.info({ userId, executionId }, 'Using user-specific Anthropic API key');
     } catch (error) {
-      logger.warn(
-        { userId, error },
-        'Failed to get user API key, falling back to default'
-      );
+      logger.warn({ userId, error }, 'Failed to get user API key, falling back to default');
     }
   }
 
@@ -96,11 +87,17 @@ Format your response as JSON:
       if (jsonMatch) {
         analysis = JSON.parse(jsonMatch[0]);
       } else {
-        analysis = { epic: { summary: 'Figma Design Update', description: aiResponse.text }, subtasks: [] };
+        analysis = {
+          epic: { summary: 'Figma Design Update', description: aiResponse.text },
+          subtasks: [],
+        };
       }
     } catch (parseError) {
       logger.warn({ parseError }, 'Failed to parse AI response as JSON, using raw text');
-      analysis = { epic: { summary: 'Figma Design Update', description: aiResponse.text }, subtasks: [] };
+      analysis = {
+        epic: { summary: 'Figma Design Update', description: aiResponse.text },
+        subtasks: [],
+      };
     }
 
     const cost = aiClient.calculateCost(

@@ -9,18 +9,12 @@ export interface AuthRequest extends Request {
 }
 
 export function createAuthMiddleware(sessionManager: SessionManager) {
-  return async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  return async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const authHeader = req.headers.authorization;
       const cookieToken = req.cookies?.session_token;
 
-      const token = authHeader?.startsWith('Bearer ')
-        ? authHeader.substring(7)
-        : cookieToken;
+      const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : cookieToken;
 
       if (!token) {
         res.status(401).json({ error: 'No authentication token provided' });
@@ -39,18 +33,12 @@ export function createAuthMiddleware(sessionManager: SessionManager) {
 }
 
 export function optionalAuth(sessionManager: SessionManager) {
-  return async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  return async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const authHeader = req.headers.authorization;
       const cookieToken = req.cookies?.session_token;
 
-      const token = authHeader?.startsWith('Bearer ')
-        ? authHeader.substring(7)
-        : cookieToken;
+      const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : cookieToken;
 
       if (token) {
         const payload = await sessionManager.verifySession(token);

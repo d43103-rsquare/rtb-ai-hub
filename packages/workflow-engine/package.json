@@ -7,10 +7,11 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@rtb-ai-hub/shared": "1.0.0",
+    "@rtb-ai-hub/shared": "workspace:*",
     "bullmq": "^5.4.0",
     "ioredis": "^5.3.2",
     "pg": "^8.11.3",

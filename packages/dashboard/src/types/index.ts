@@ -18,13 +18,7 @@ export interface Credential {
   metadata?: Record<string, unknown>;
 }
 
-export type ServiceType = 
-  | 'anthropic'
-  | 'openai'
-  | 'jira'
-  | 'github'
-  | 'figma'
-  | 'datadog';
+export type ServiceType = 'anthropic' | 'openai' | 'jira' | 'github' | 'figma' | 'datadog';
 
 export type WorkflowStatus = 'pending' | 'running' | 'completed' | 'failed';
 

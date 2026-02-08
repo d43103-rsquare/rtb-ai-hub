@@ -5,10 +5,7 @@ import { SessionManager } from '../utils/session';
 
 const logger = createLogger('google-routes');
 
-export function createGoogleRoutes(
-  googleAuth: GoogleAuthManager,
-  sessionManager: SessionManager
-) {
+export function createGoogleRoutes(googleAuth: GoogleAuthManager, sessionManager: SessionManager) {
   const router = Router();
 
   router.get('/auth/google/login', (req, res) => {
@@ -56,13 +53,11 @@ export function createGoogleRoutes(
         maxAge: 30 * 24 * 60 * 60 * 1000,
       });
 
-      const redirectUrl =
-        process.env.DASHBOARD_URL || 'http://localhost:3000';
+      const redirectUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
       res.redirect(`${redirectUrl}/dashboard?login=success`);
     } catch (error) {
       logger.error({ error }, 'Google callback failed');
-      const redirectUrl =
-        process.env.DASHBOARD_URL || 'http://localhost:3000';
+      const redirectUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
       res.redirect(`${redirectUrl}/login?error=auth_failed`);
     }
   });

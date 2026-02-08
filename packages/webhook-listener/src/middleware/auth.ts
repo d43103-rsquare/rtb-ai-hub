@@ -8,11 +8,7 @@ export interface AuthRequest extends Request {
   user?: JWTPayload;
 }
 
-export function optionalAuth(
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): void {
+export function optionalAuth(req: AuthRequest, res: Response, next: NextFunction): void {
   try {
     const authHeader = req.headers.authorization;
 

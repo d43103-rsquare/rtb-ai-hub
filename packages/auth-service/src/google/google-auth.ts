@@ -28,10 +28,7 @@ export class GoogleAuthManager {
       .map((d) => d.trim())
       .filter(Boolean);
 
-    logger.info(
-      { allowedDomains: this.allowedDomains },
-      'Google Auth Manager initialized'
-    );
+    logger.info({ allowedDomains: this.allowedDomains }, 'Google Auth Manager initialized');
   }
 
   getAuthorizationUrl(state?: string): string {
@@ -63,9 +60,7 @@ export class GoogleAuthManager {
       if (this.allowedDomains.length > 0) {
         const domain = payload.hd;
         if (!domain || !this.allowedDomains.includes(domain)) {
-          throw new Error(
-            `Unauthorized workspace domain: ${domain || 'none'}`
-          );
+          throw new Error(`Unauthorized workspace domain: ${domain || 'none'}`);
         }
       }
 

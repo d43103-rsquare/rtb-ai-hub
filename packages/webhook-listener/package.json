@@ -7,26 +7,30 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@rtb-ai-hub/shared": "1.0.0",
-    "express": "^4.18.2",
+    "@rtb-ai-hub/shared": "workspace:*",
+    "bullmq": "^5.4.0",
     "cors": "^2.8.5",
+    "express": "^4.18.2",
     "helmet": "^7.1.0",
+    "ioredis": "^5.3.2",
+    "jsonwebtoken": "^9.0.2",
     "pino": "^9.0.0",
     "pino-http": "^9.0.0",
-    "bullmq": "^5.4.0",
-    "ioredis": "^5.3.2",
-    "jsonwebtoken": "^9.0.2"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
     "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.5",
     "@types/node": "^20.11.0",
-    "typescript": "^5.3.0",
+    "@types/supertest": "^6.0.3",
+    "nodemon": "^3.0.3",
+    "supertest": "^7.2.2",
     "tsx": "^4.7.0",
-    "nodemon": "^3.0.3"
+    "typescript": "^5.3.0"
   }
 }

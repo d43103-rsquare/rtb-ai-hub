@@ -86,7 +86,7 @@ export function CredentialsPage() {
   };
 
   const isConnected = (service: string) => {
-    return credentials.some(c => c.service === service && c.isActive);
+    return credentials.some((c) => c.service === service && c.isActive);
   };
 
   const maskApiKey = (key: string) => {
@@ -98,17 +98,13 @@ export function CredentialsPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Credentials</h1>
-        <p className="mt-2 text-gray-600">
-          Manage your API keys and OAuth connections
-        </p>
+        <p className="mt-2 text-gray-600">Manage your API keys and OAuth connections</p>
       </div>
 
       <Card>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-gray-900">API Keys</h2>
-          <Button onClick={() => setShowApiKeyModal(true)}>
-            Add API Key
-          </Button>
+          <Button onClick={() => setShowApiKeyModal(true)}>Add API Key</Button>
         </div>
 
         {loading ? (
@@ -116,7 +112,7 @@ export function CredentialsPage() {
         ) : (
           <div className="space-y-4">
             {API_KEY_SERVICES.map((service) => {
-              const credential = credentials.find(c => c.service === service.name);
+              const credential = credentials.find((c) => c.service === service.name);
               return (
                 <div
                   key={service.name}
@@ -156,10 +152,7 @@ export function CredentialsPage() {
           {OAUTH_SERVICES.map((service) => {
             const connected = isConnected(service.name);
             return (
-              <div
-                key={service.name}
-                className="p-6 rounded-lg border border-gray-200 space-y-4"
-              >
+              <div key={service.name} className="p-6 rounded-lg border border-gray-200 space-y-4">
                 <div className="flex items-center gap-3">
                   <span className="text-3xl">{service.icon}</span>
                   <div>
@@ -194,16 +187,10 @@ export function CredentialsPage() {
         </div>
       </Card>
 
-      <Modal
-        isOpen={showApiKeyModal}
-        onClose={() => setShowApiKeyModal(false)}
-        title="Add API Key"
-      >
+      <Modal isOpen={showApiKeyModal} onClose={() => setShowApiKeyModal(false)} title="Add API Key">
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Service
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Service</label>
             <select
               value={selectedService}
               onChange={(e) => setSelectedService(e.target.value as 'anthropic' | 'openai')}
@@ -220,7 +207,7 @@ export function CredentialsPage() {
           <Input
             label="API Key"
             type="password"
-            placeholder={API_KEY_SERVICES.find(s => s.name === selectedService)?.placeholder}
+            placeholder={API_KEY_SERVICES.find((s) => s.name === selectedService)?.placeholder}
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
           />

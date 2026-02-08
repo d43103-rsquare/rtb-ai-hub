@@ -12,11 +12,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
 
     return (
       <div className={widthClass}>
-        {label && (
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            {label}
-          </label>
-        )}
+        {label && <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>}
         <input
           ref={ref}
           className={`
@@ -29,9 +25,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           `}
           {...props}
         />
-        {error && (
-          <p className="mt-1 text-sm text-red-600">{error}</p>
-        )}
+        {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
       </div>
     );
   }

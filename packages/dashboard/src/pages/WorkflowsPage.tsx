@@ -39,9 +39,8 @@ const dummyData: DummyWorkflow[] = [
 export function WorkflowsPage() {
   const [filter, setFilter] = useState<WorkflowStatus | 'all'>('all');
 
-  const filteredWorkflows = filter === 'all'
-    ? dummyData
-    : dummyData.filter(w => w.status === filter);
+  const filteredWorkflows =
+    filter === 'all' ? dummyData : dummyData.filter((w) => w.status === filter);
 
   const statusColors: Record<WorkflowStatus, string> = {
     pending: 'bg-yellow-100 text-yellow-800',
@@ -54,9 +53,7 @@ export function WorkflowsPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Workflows</h1>
-        <p className="mt-2 text-gray-600">
-          View your workflow execution history
-        </p>
+        <p className="mt-2 text-gray-600">View your workflow execution history</p>
       </div>
 
       <Card>
@@ -92,9 +89,13 @@ export function WorkflowsPage() {
                 <tr className="border-b border-gray-200">
                   <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">ID</th>
                   <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">Type</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">Status</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">
+                    Status
+                  </th>
                   <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">Cost</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">Created At</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">
+                    Created At
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -103,7 +104,9 @@ export function WorkflowsPage() {
                     <td className="py-4 px-4 text-sm font-mono text-gray-900">{workflow.id}</td>
                     <td className="py-4 px-4 text-sm text-gray-900">{workflow.type}</td>
                     <td className="py-4 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColors[workflow.status]}`}>
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-medium ${statusColors[workflow.status]}`}
+                      >
                         {workflow.status}
                       </span>
                     </td>

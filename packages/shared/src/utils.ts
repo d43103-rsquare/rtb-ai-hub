@@ -11,7 +11,7 @@ export function createLogger(name: string) {
   };
 
   const isDevelopment = process.env.NODE_ENV === 'development';
-  
+
   if (isDevelopment) {
     try {
       return pino({
@@ -29,7 +29,7 @@ export function createLogger(name: string) {
       console.warn('pino-pretty not available, using basic logger');
     }
   }
-  
+
   return pino(baseConfig);
 }
 
@@ -99,12 +99,7 @@ export async function retry<T>(
     onRetry?: (error: Error, attempt: number) => void;
   } = {}
 ): Promise<T> {
-  const {
-    attempts = 3,
-    delay = 1000,
-    backoff = 'exponential',
-    onRetry,
-  } = options;
+  const { attempts = 3, delay = 1000, backoff = 'exponential', onRetry } = options;
 
   let lastError: Error | undefined;
 
@@ -113,15 +108,15 @@ export async function retry<T>(
       return await fn();
     } catch (error) {
       lastError = error as Error;
-      
+
       if (attempt < attempts) {
         const waitTime =
           backoff === 'exponential' ? delay * Math.pow(2, attempt - 1) : delay * attempt;
-        
+
         if (onRetry) {
           onRetry(lastError, attempt);
         }
-        
+
         await new Promise((resolve) => setTimeout(resolve, waitTime));
       }
     }

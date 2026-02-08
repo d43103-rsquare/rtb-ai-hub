@@ -11,7 +11,9 @@ export function LoadingSpinner({ size = 'md', fullScreen = false }: LoadingSpinn
   };
 
   const spinner = (
-    <div className={`${sizeStyles[size]} border-blue-600 border-t-transparent rounded-full animate-spin`} />
+    <div
+      className={`${sizeStyles[size]} border-blue-600 border-t-transparent rounded-full animate-spin`}
+    />
   );
 
   if (fullScreen) {
@@ -22,9 +24,5 @@ export function LoadingSpinner({ size = 'md', fullScreen = false }: LoadingSpinn
     );
   }
 
-  return (
-    <div className="flex items-center justify-center p-8">
-      {spinner}
-    </div>
-  );
+  return <div className="flex items-center justify-center p-8">{spinner}</div>;
 }

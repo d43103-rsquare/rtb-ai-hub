@@ -26,13 +26,7 @@ export interface UserCredential {
   updatedAt: Date;
 }
 
-export type ServiceType = 
-  | 'anthropic'
-  | 'openai'
-  | 'jira'
-  | 'github'
-  | 'figma'
-  | 'datadog';
+export type ServiceType = 'anthropic' | 'openai' | 'jira' | 'github' | 'figma' | 'datadog';
 
 export interface CredentialUsageLog {
   id: string;

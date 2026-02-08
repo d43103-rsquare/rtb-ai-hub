@@ -64,11 +64,14 @@ async function main() {
     }
   });
 
-  setInterval(() => {
-    sessionManager.cleanupExpiredSessions().catch((error) => {
-      logger.error({ error }, 'Failed to cleanup expired sessions');
-    });
-  }, 60 * 60 * 1000);
+  setInterval(
+    () => {
+      sessionManager.cleanupExpiredSessions().catch((error) => {
+        logger.error({ error }, 'Failed to cleanup expired sessions');
+      });
+    },
+    60 * 60 * 1000
+  );
 
   app.listen(port, () => {
     logger.info({ port }, 'Auth service started');

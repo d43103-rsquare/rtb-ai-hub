@@ -48,7 +48,7 @@ export function DashboardPage() {
     },
     {
       label: 'Active APIs',
-      value: credentials.filter(c => c.isActive).length,
+      value: credentials.filter((c) => c.isActive).length,
       icon: '🔑',
       color: 'bg-orange-500',
       link: ROUTES.CREDENTIALS,
@@ -69,13 +69,13 @@ export function DashboardPage() {
           <Link key={stat.label} to={stat.link}>
             <Card className="hover:shadow-lg transition-shadow duration-200">
               <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-lg ${stat.color} flex items-center justify-center text-2xl`}>
+                <div
+                  className={`w-12 h-12 rounded-lg ${stat.color} flex items-center justify-center text-2xl`}
+                >
                   {stat.icon}
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-gray-900">
-                    {stat.value}
-                  </div>
+                  <div className="text-2xl font-bold text-gray-900">{stat.value}</div>
                   <div className="text-sm text-gray-600">{stat.label}</div>
                 </div>
               </div>
@@ -90,9 +90,7 @@ export function DashboardPage() {
           {loading ? (
             <div className="text-center py-8 text-gray-500">Loading...</div>
           ) : (
-            <div className="text-center py-8 text-gray-500">
-              No recent activity
-            </div>
+            <div className="text-center py-8 text-gray-500">No recent activity</div>
           )}
         </Card>
 

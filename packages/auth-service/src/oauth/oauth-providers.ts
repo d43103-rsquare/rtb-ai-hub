@@ -18,12 +18,7 @@ const PROVIDERS: Record<
     name: 'Jira',
     authUrl: 'https://auth.atlassian.com/authorize',
     tokenUrl: 'https://auth.atlassian.com/oauth/token',
-    scopes: [
-      'read:jira-work',
-      'write:jira-work',
-      'read:jira-user',
-      'offline_access',
-    ],
+    scopes: ['read:jira-work', 'write:jira-work', 'read:jira-user', 'offline_access'],
   },
   github: {
     name: 'GitHub',
@@ -47,8 +42,7 @@ const PROVIDERS: Record<
 
 export class OAuthManager {
   private credentialManager: CredentialManager;
-  private stateStore: Map<string, { userId: string; service: ServiceType }> =
-    new Map();
+  private stateStore: Map<string, { userId: string; service: ServiceType }> = new Map();
 
   constructor(credentialManager: CredentialManager) {
     this.credentialManager = credentialManager;
@@ -109,11 +103,7 @@ export class OAuthManager {
     const config = this.getProviderConfig(service);
     const tokens = await this.exchangeCodeForTokens(service, code, config);
 
-    await this.credentialManager.saveOAuthTokens(
-      stateData.userId,
-      service,
-      tokens
-    );
+    await this.credentialManager.saveOAuthTokens(stateData.userId, service, tokens);
 
     logger.info({ service, userId: stateData.userId }, 'OAuth callback handled');
     return stateData;
@@ -148,14 +138,11 @@ export class OAuthManager {
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error(
-        { service, status: response.status, error: errorText },
-        'Token exchange failed'
-      );
+      logger.error({ service, status: response.status, error: errorText }, 'Token exchange failed');
       throw new Error(`Token exchange failed: ${errorText}`);
     }
 
-    const data = await response.json() as any;
+    const data = (await response.json()) as any;
 
     return {
       accessToken: data.access_token,
@@ -193,7 +180,7 @@ export class OAuthManager {
       throw new Error(`Token refresh failed for ${service}`);
     }
 
-    const data = await response.json() as any;
+    const data = (await response.json()) as any;
 
     await this.credentialManager.updateOAuthAccessToken(
       userId,
@@ -224,23 +211,22 @@ export class OAuthManager {
   }
 
   private generateState(userId: string, service: ServiceType): string {
-    const state = `${userId}:${service}:${Date.now()}:${Math.random()
-      .toString(36)
-      .substring(2)}`;
+    const state = `${userId}:${service}:${Date.now()}:${Math.random().toString(36).substring(2)}`;
     const encoded = Buffer.from(state).toString('base64url');
 
     this.stateStore.set(encoded, { userId, service });
 
-    setTimeout(() => {
-      this.stateStore.delete(encoded);
-    }, 10 * 60 * 1000);
+    setTimeout(
+      () => {
+        this.stateStore.delete(encoded);
+      },
+      10 * 60 * 1000
+    );
 
     return encoded;
   }
 
-  private verifyState(
-    state: string
-  ): { userId: string; service: ServiceType } {
+  private verifyState(state: string): { userId: string; service: ServiceType } {
     const data = this.stateStore.get(state);
 
     if (!data) {

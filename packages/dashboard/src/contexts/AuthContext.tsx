@@ -20,7 +20,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const userData = await authApi.getCurrentUser();
       setUser(userData);
-    } catch (error) {
+    } catch (_error) {
       setUser(null);
     } finally {
       setIsLoading(false);

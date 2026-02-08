@@ -20,19 +20,13 @@ export function ProfilePage() {
     <div className="space-y-8 max-w-4xl">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Profile</h1>
-        <p className="mt-2 text-gray-600">
-          Manage your account settings
-        </p>
+        <p className="mt-2 text-gray-600">Manage your account settings</p>
       </div>
 
       <Card>
         <div className="flex items-start gap-6">
           {user.picture ? (
-            <img
-              src={user.picture}
-              alt={user.name}
-              className="w-24 h-24 rounded-full"
-            />
+            <img src={user.picture} alt={user.name} className="w-24 h-24 rounded-full" />
           ) : (
             <div className="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-white text-3xl font-bold">
               {user.name.charAt(0).toUpperCase()}

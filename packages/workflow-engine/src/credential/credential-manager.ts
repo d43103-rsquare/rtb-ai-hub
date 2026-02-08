@@ -6,7 +6,7 @@ import {
   OAuthTokenSet,
   CredentialUsageLog,
 } from '@rtb-ai-hub/shared';
-import { query, transaction } from '../utils/database';
+import { query, transaction as _transaction } from '../utils/database';
 import { encryptApiKey, decryptApiKey } from './encryption';
 
 const logger = createLogger('credential-manager');
@@ -78,9 +78,7 @@ export class CredentialManager {
     metadata?: { ipAddress?: string; userAgent?: string }
   ): Promise<void> {
     const credentialId = generateId('cred');
-    const expiresAt = tokens.expiresIn
-      ? new Date(Date.now() + tokens.expiresIn * 1000)
-      : null;
+    const expiresAt = tokens.expiresIn ? new Date(Date.now() + tokens.expiresIn * 1000) : null;
 
     await query(
       `
@@ -119,10 +117,7 @@ export class CredentialManager {
     logger.info({ userId, service }, 'OAuth tokens saved');
   }
 
-  async getOAuthTokens(
-    userId: string,
-    service: ServiceType
-  ): Promise<OAuthTokenSet | null> {
+  async getOAuthTokens(userId: string, service: ServiceType): Promise<OAuthTokenSet | null> {
     const rows = await query<{
       access_token: string;
       refresh_token: string | null;
@@ -166,9 +161,7 @@ export class CredentialManager {
     newAccessToken: string,
     expiresIn?: number
   ): Promise<void> {
-    const expiresAt = expiresIn
-      ? new Date(Date.now() + expiresIn * 1000)
-      : null;
+    const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
 
     await query(
       `

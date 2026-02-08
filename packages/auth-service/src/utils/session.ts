@@ -1,18 +1,12 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import {
-  createLogger,
-  requireEnv,
-  generateId,
-  JWTPayload,
-  UserSession,
-} from '@rtb-ai-hub/shared';
+import { createLogger, requireEnv, generateId, JWTPayload, UserSession } from '@rtb-ai-hub/shared';
 import { query } from './database';
 
 const logger = createLogger('session');
 
 const SESSION_DURATION = 7 * 24 * 60 * 60;
-const REFRESH_TOKEN_DURATION = 30 * 24 * 60 * 60;
+const _REFRESH_TOKEN_DURATION = 30 * 24 * 60 * 60;
 
 export class SessionManager {
   private jwtSecret: string;
@@ -126,10 +120,7 @@ export class SessionManager {
 
     await this.deleteSession(session[0].id);
 
-    const newSession = await this.createSession(
-      session[0].user_id,
-      session[0].email
-    );
+    const newSession = await this.createSession(session[0].user_id, session[0].email);
 
     logger.info({ userId: session[0].user_id }, 'Session refreshed');
 

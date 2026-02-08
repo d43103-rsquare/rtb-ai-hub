@@ -17,12 +17,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   return (
     <>
       {isOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
-          onClick={onClose}
-        />
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden" onClick={onClose} />
       )}
-      
+
       <aside
         className={`
           fixed lg:static inset-y-0 left-0 z-30
@@ -37,7 +34,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               RTB AI Hub
             </h1>
           </div>
-          
+
           <nav className="flex-1 p-4 space-y-2">
             {navItems.map((item) => (
               <NavLink
@@ -57,11 +54,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               </NavLink>
             ))}
           </nav>
-          
+
           <div className="p-4 border-t border-gray-800">
-            <div className="text-xs text-gray-500">
-              v1.0.0
-            </div>
+            <div className="text-xs text-gray-500">v1.0.0</div>
           </div>
         </div>
       </aside>

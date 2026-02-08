@@ -3,7 +3,7 @@ import { requireEnv } from '@rtb-ai-hub/shared';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
-const AUTH_TAG_LENGTH = 16;
+const _AUTH_TAG_LENGTH = 16;
 
 let encryptionKey: Buffer | null = null;
 
@@ -13,9 +13,7 @@ function getEncryptionKey(): Buffer {
     encryptionKey = Buffer.from(keyHex, 'hex');
 
     if (encryptionKey.length !== 32) {
-      throw new Error(
-        'CREDENTIAL_ENCRYPTION_KEY must be 32 bytes (64 hex characters)'
-      );
+      throw new Error('CREDENTIAL_ENCRYPTION_KEY must be 32 bytes (64 hex characters)');
     }
   }
 
@@ -33,10 +31,7 @@ export function encryptApiKey(apiKey: string): string {
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
 
-  const encrypted = Buffer.concat([
-    cipher.update(apiKey, 'utf8'),
-    cipher.final(),
-  ]);
+  const encrypted = Buffer.concat([cipher.update(apiKey, 'utf8'), cipher.final()]);
 
   const authTag = cipher.getAuthTag();
 
@@ -53,11 +48,7 @@ export function decryptApiKey(encryptedData: string): string {
   const key = getEncryptionKey();
   const data: EncryptedData = JSON.parse(encryptedData);
 
-  const decipher = crypto.createDecipheriv(
-    ALGORITHM,
-    key,
-    Buffer.from(data.iv, 'hex')
-  );
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, Buffer.from(data.iv, 'hex'));
 
   decipher.setAuthTag(Buffer.from(data.authTag, 'hex'));
 

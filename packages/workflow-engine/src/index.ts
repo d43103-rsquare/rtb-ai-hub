@@ -7,7 +7,13 @@ const logger = createLogger('workflow-engine');
 const healthServer = http.createServer((req, res) => {
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', service: 'workflow-engine', timestamp: new Date().toISOString() }));
+    res.end(
+      JSON.stringify({
+        status: 'ok',
+        service: 'workflow-engine',
+        timestamp: new Date().toISOString(),
+      })
+    );
   } else {
     res.writeHead(404);
     res.end();

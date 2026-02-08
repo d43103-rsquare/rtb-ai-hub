@@ -28,10 +28,7 @@ export function getPool(): Pool {
   return pool;
 }
 
-export async function query<T = any>(
-  text: string,
-  params?: any[]
-): Promise<T[]> {
+export async function query<T = any>(text: string, params?: any[]): Promise<T[]> {
   const pool = getPool();
   const start = Date.now();
 
@@ -39,10 +36,7 @@ export async function query<T = any>(
     const result = await pool.query(text, params);
     const duration = Date.now() - start;
 
-    logger.debug(
-      { text, duration, rows: result.rowCount },
-      'Query executed'
-    );
+    logger.debug({ text, duration, rows: result.rowCount }, 'Query executed');
 
     return result.rows;
   } catch (error) {
@@ -56,9 +50,7 @@ export async function getClient(): Promise<PoolClient> {
   return await pool.connect();
 }
 
-export async function transaction<T>(
-  callback: (client: PoolClient) => Promise<T>
-): Promise<T> {
+export async function transaction<T>(callback: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await getClient();
 
   try {
