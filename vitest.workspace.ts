@@ -3,4 +3,5 @@ export default [
   'packages/webhook-listener',
   'packages/auth-service',
   'packages/workflow-engine',
+  'packages/dashboard',
 ];

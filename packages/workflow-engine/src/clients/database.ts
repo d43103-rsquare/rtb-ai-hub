@@ -31,39 +31,35 @@ export class Database {
   }
 
   async saveWorkflowExecution(execution: Partial<WorkflowExecution>): Promise<void> {
-    const query = `
-      INSERT INTO workflow_executions (
-        id, type, status, input, output, error, user_id,
-        ai_model, tokens_input, tokens_output, cost_usd,
-        started_at, completed_at, duration
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-      ON CONFLICT (id) DO UPDATE SET
-        status = EXCLUDED.status,
-        output = EXCLUDED.output,
-        error = EXCLUDED.error,
-        completed_at = EXCLUDED.completed_at,
-        duration = EXCLUDED.duration
-    `;
-
-    const values = [
-      execution.id,
-      execution.type,
-      execution.status,
-      JSON.stringify(execution.input),
-      execution.output ? JSON.stringify(execution.output) : null,
-      execution.error || null,
-      execution.userId || null,
-      execution.aiModel || null,
-      execution.tokensUsed?.input || null,
-      execution.tokensUsed?.output || null,
-      execution.costUsd || null,
-      execution.startedAt,
-      execution.completedAt || null,
-      execution.duration || null,
-    ];
-
     try {
-      await this.pool.query(query, values);
+      await this.drizzle
+        .insert(dbSchema.workflowExecutions)
+        .values({
+          id: execution.id!,
+          type: execution.type!,
+          status: execution.status!,
+          input: execution.input,
+          output: execution.output || null,
+          error: execution.error || null,
+          userId: execution.userId || null,
+          aiModel: execution.aiModel || null,
+          tokensInput: execution.tokensUsed?.input || null,
+          tokensOutput: execution.tokensUsed?.output || null,
+          costUsd: execution.costUsd?.toString() || null,
+          startedAt: execution.startedAt || new Date(),
+          completedAt: execution.completedAt || null,
+          duration: execution.duration || null,
+        })
+        .onConflictDoUpdate({
+          target: dbSchema.workflowExecutions.id,
+          set: {
+            status: execution.status!,
+            output: execution.output || null,
+            error: execution.error || null,
+            completedAt: execution.completedAt || null,
+            duration: execution.duration || null,
+          },
+        });
       logger.info({ executionId: execution.id }, 'Workflow execution saved');
     } catch (error) {
       logger.error({ error, executionId: execution.id }, 'Failed to save workflow execution');
@@ -79,25 +75,29 @@ export class Database {
     tokensOutput: number;
     costUsd: number;
   }): Promise<void> {
-    const query = `
-      INSERT INTO ai_costs (id, workflow_execution_id, model, tokens_input, tokens_output, cost_usd)
-      VALUES ($1, $2, $3, $4, $5, $6)
-    `;
-
-    const values = [
-      data.id,
-      data.workflowExecutionId,
-      data.model,
-      data.tokensInput,
-      data.tokensOutput,
-      data.costUsd,
-    ];
-
     try {
-      await this.pool.query(query, values);
+      await this.drizzle.insert(dbSchema.aiCosts).values({
+        id: data.id,
+        workflowExecutionId: data.workflowExecutionId,
+        model: data.model,
+        tokensInput: data.tokensInput,
+        tokensOutput: data.tokensOutput,
+        costUsd: data.costUsd.toString(),
+      });
       logger.info({ costId: data.id }, 'AI cost saved');
     } catch (error) {
       logger.error({ error }, 'Failed to save AI cost');
+      throw error;
+    }
+  }
+
+  /** Raw SQL query for backward compatibility */
+  async query<T>(text: string, params?: unknown[]): Promise<T[]> {
+    try {
+      const result = await this.pool.query(text, params);
+      return result.rows;
+    } catch (error) {
+      logger.error({ error, text }, 'Query failed');
       throw error;
     }
   }
@@ -109,14 +109,3 @@ export class Database {
 }
 
 export const database = new Database();
-
-export async function query<T = any>(text: string, params?: any[]): Promise<T[]> {
-  const pool = database['pool'];
-  try {
-    const result = await pool.query(text, params);
-    return result.rows;
-  } catch (error) {
-    logger.error({ error, text }, 'Query failed');
-    throw error;
-  }
-}

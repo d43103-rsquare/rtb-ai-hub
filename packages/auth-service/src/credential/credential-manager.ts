@@ -5,8 +5,10 @@ import {
   UserCredential,
   OAuthTokenSet,
   CredentialUsageLog,
+  dbSchema,
 } from '@rtb-ai-hub/shared';
-import { query, transaction as _transaction } from '../utils/database';
+import { eq, and, desc } from 'drizzle-orm';
+import { db } from '../utils/database';
 import { encryptApiKey, decryptApiKey } from './encryption';
 
 const logger = createLogger('credential-manager');
@@ -21,20 +23,25 @@ export class CredentialManager {
     const encrypted = encryptApiKey(apiKey);
     const credentialId = generateId('cred');
 
-    await query(
-      `
-      INSERT INTO user_credentials 
-        (id, user_id, service, auth_type, api_key_encrypted, is_active, created_at, updated_at)
-      VALUES ($1, $2, $3, 'api_key', $4, true, NOW(), NOW())
-      ON CONFLICT (user_id, service) 
-      DO UPDATE SET 
-        api_key_encrypted = $4,
-        auth_type = 'api_key',
-        is_active = true,
-        updated_at = NOW()
-      `,
-      [credentialId, userId, service, encrypted]
-    );
+    await db
+      .insert(dbSchema.userCredentials)
+      .values({
+        id: credentialId,
+        userId,
+        service,
+        authType: 'api_key',
+        apiKeyEncrypted: encrypted,
+        isActive: true,
+      })
+      .onConflictDoUpdate({
+        target: [dbSchema.userCredentials.userId, dbSchema.userCredentials.service],
+        set: {
+          apiKeyEncrypted: encrypted,
+          authType: 'api_key',
+          isActive: true,
+          updatedAt: new Date(),
+        },
+      });
 
     await this.logCredentialAction({
       userId,
@@ -48,16 +55,19 @@ export class CredentialManager {
   }
 
   async getApiKey(userId: string, service: ServiceType): Promise<string> {
-    const rows = await query<{ api_key_encrypted: string }>(
-      `
-      SELECT api_key_encrypted
-      FROM user_credentials
-      WHERE user_id = $1 AND service = $2 AND auth_type = 'api_key' AND is_active = true
-      `,
-      [userId, service]
-    );
+    const rows = await db
+      .select({ apiKeyEncrypted: dbSchema.userCredentials.apiKeyEncrypted })
+      .from(dbSchema.userCredentials)
+      .where(
+        and(
+          eq(dbSchema.userCredentials.userId, userId),
+          eq(dbSchema.userCredentials.service, service),
+          eq(dbSchema.userCredentials.authType, 'api_key'),
+          eq(dbSchema.userCredentials.isActive, true)
+        )
+      );
 
-    if (!rows[0]) {
+    if (!rows[0]?.apiKeyEncrypted) {
       throw new Error(`API key for ${service} not found`);
     }
 
@@ -68,7 +78,7 @@ export class CredentialManager {
       success: true,
     });
 
-    return decryptApiKey(rows[0].api_key_encrypted);
+    return decryptApiKey(rows[0].apiKeyEncrypted);
   }
 
   async saveOAuthTokens(
@@ -80,31 +90,31 @@ export class CredentialManager {
     const credentialId = generateId('cred');
     const expiresAt = tokens.expiresIn ? new Date(Date.now() + tokens.expiresIn * 1000) : null;
 
-    await query(
-      `
-      INSERT INTO user_credentials 
-        (id, user_id, service, auth_type, access_token, refresh_token, token_expires_at, scope, is_active, created_at, updated_at)
-      VALUES ($1, $2, $3, 'oauth', $4, $5, $6, $7, true, NOW(), NOW())
-      ON CONFLICT (user_id, service) 
-      DO UPDATE SET 
-        access_token = $4,
-        refresh_token = $5,
-        token_expires_at = $6,
-        scope = $7,
-        auth_type = 'oauth',
-        is_active = true,
-        updated_at = NOW()
-      `,
-      [
-        credentialId,
+    await db
+      .insert(dbSchema.userCredentials)
+      .values({
+        id: credentialId,
         userId,
         service,
-        tokens.accessToken,
-        tokens.refreshToken || null,
-        expiresAt,
-        tokens.scope || null,
-      ]
-    );
+        authType: 'oauth',
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken || null,
+        tokenExpiresAt: expiresAt,
+        scope: tokens.scope || null,
+        isActive: true,
+      })
+      .onConflictDoUpdate({
+        target: [dbSchema.userCredentials.userId, dbSchema.userCredentials.service],
+        set: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken || null,
+          tokenExpiresAt: expiresAt,
+          scope: tokens.scope || null,
+          authType: 'oauth',
+          isActive: true,
+          updatedAt: new Date(),
+        },
+      });
 
     await this.logCredentialAction({
       userId,
@@ -118,25 +128,28 @@ export class CredentialManager {
   }
 
   async getOAuthTokens(userId: string, service: ServiceType): Promise<OAuthTokenSet | null> {
-    const rows = await query<{
-      access_token: string;
-      refresh_token: string | null;
-      token_expires_at: Date | null;
-      scope: string | null;
-    }>(
-      `
-      SELECT access_token, refresh_token, token_expires_at, scope
-      FROM user_credentials
-      WHERE user_id = $1 AND service = $2 AND auth_type = 'oauth' AND is_active = true
-      `,
-      [userId, service]
-    );
+    const rows = await db
+      .select({
+        accessToken: dbSchema.userCredentials.accessToken,
+        refreshToken: dbSchema.userCredentials.refreshToken,
+        tokenExpiresAt: dbSchema.userCredentials.tokenExpiresAt,
+        scope: dbSchema.userCredentials.scope,
+      })
+      .from(dbSchema.userCredentials)
+      .where(
+        and(
+          eq(dbSchema.userCredentials.userId, userId),
+          eq(dbSchema.userCredentials.service, service),
+          eq(dbSchema.userCredentials.authType, 'oauth'),
+          eq(dbSchema.userCredentials.isActive, true)
+        )
+      );
 
     if (!rows[0]) {
       return null;
     }
 
-    const { access_token, refresh_token, token_expires_at, scope } = rows[0];
+    const { accessToken, refreshToken, tokenExpiresAt, scope } = rows[0];
 
     await this.logCredentialAction({
       userId,
@@ -146,10 +159,10 @@ export class CredentialManager {
     });
 
     return {
-      accessToken: access_token,
-      refreshToken: refresh_token || undefined,
-      expiresIn: token_expires_at
-        ? Math.floor((token_expires_at.getTime() - Date.now()) / 1000)
+      accessToken: accessToken!,
+      refreshToken: refreshToken || undefined,
+      expiresIn: tokenExpiresAt
+        ? Math.floor((tokenExpiresAt.getTime() - Date.now()) / 1000)
         : undefined,
       scope: scope || undefined,
     };
@@ -163,14 +176,20 @@ export class CredentialManager {
   ): Promise<void> {
     const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
 
-    await query(
-      `
-      UPDATE user_credentials
-      SET access_token = $1, token_expires_at = $2, updated_at = NOW()
-      WHERE user_id = $3 AND service = $4 AND auth_type = 'oauth'
-      `,
-      [newAccessToken, expiresAt, userId, service]
-    );
+    await db
+      .update(dbSchema.userCredentials)
+      .set({
+        accessToken: newAccessToken,
+        tokenExpiresAt: expiresAt,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(dbSchema.userCredentials.userId, userId),
+          eq(dbSchema.userCredentials.service, service),
+          eq(dbSchema.userCredentials.authType, 'oauth')
+        )
+      );
 
     await this.logCredentialAction({
       userId,
@@ -183,14 +202,18 @@ export class CredentialManager {
   }
 
   async deleteCredential(userId: string, service: ServiceType): Promise<void> {
-    await query(
-      `
-      UPDATE user_credentials
-      SET is_active = false, updated_at = NOW()
-      WHERE user_id = $1 AND service = $2
-      `,
-      [userId, service]
-    );
+    await db
+      .update(dbSchema.userCredentials)
+      .set({
+        isActive: false,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(dbSchema.userCredentials.userId, userId),
+          eq(dbSchema.userCredentials.service, service)
+        )
+      );
 
     await this.logCredentialAction({
       userId,
@@ -203,19 +226,28 @@ export class CredentialManager {
   }
 
   async getUserCredentials(userId: string): Promise<UserCredential[]> {
-    const rows = await query<UserCredential>(
-      `
-      SELECT id, user_id as "userId", service, auth_type as "authType",
-             token_expires_at as "tokenExpiresAt", scope, is_active as "isActive",
-             created_at as "createdAt", updated_at as "updatedAt"
-      FROM user_credentials
-      WHERE user_id = $1 AND is_active = true
-      ORDER BY created_at DESC
-      `,
-      [userId]
-    );
+    const rows = await db
+      .select({
+        id: dbSchema.userCredentials.id,
+        userId: dbSchema.userCredentials.userId,
+        service: dbSchema.userCredentials.service,
+        authType: dbSchema.userCredentials.authType,
+        tokenExpiresAt: dbSchema.userCredentials.tokenExpiresAt,
+        scope: dbSchema.userCredentials.scope,
+        isActive: dbSchema.userCredentials.isActive,
+        createdAt: dbSchema.userCredentials.createdAt,
+        updatedAt: dbSchema.userCredentials.updatedAt,
+      })
+      .from(dbSchema.userCredentials)
+      .where(
+        and(
+          eq(dbSchema.userCredentials.userId, userId),
+          eq(dbSchema.userCredentials.isActive, true)
+        )
+      )
+      .orderBy(desc(dbSchema.userCredentials.createdAt));
 
-    return rows;
+    return rows as UserCredential[];
   }
 
   private async logCredentialAction(log: {
@@ -228,23 +260,16 @@ export class CredentialManager {
     userAgent?: string;
   }): Promise<void> {
     try {
-      await query(
-        `
-        INSERT INTO credential_usage_log 
-          (id, user_id, service, action, ip_address, user_agent, success, error_message, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-        `,
-        [
-          generateId('log'),
-          log.userId,
-          log.service,
-          log.action,
-          log.ipAddress || null,
-          log.userAgent || null,
-          log.success,
-          log.errorMessage || null,
-        ]
-      );
+      await db.insert(dbSchema.credentialUsageLog).values({
+        id: generateId('log'),
+        userId: log.userId,
+        service: log.service,
+        action: log.action,
+        ipAddress: log.ipAddress || null,
+        userAgent: log.userAgent || null,
+        success: log.success,
+        errorMessage: log.errorMessage || null,
+      });
     } catch (error) {
       logger.error({ error, log }, 'Failed to log credential action');
     }

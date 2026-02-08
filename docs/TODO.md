@@ -1,0 +1,157 @@
+# RTB AI Hub — Development Roadmap & TODO
+
+> **Last Updated**: 2026-02-08
+> **Current Score**: ~7.5/10 (from 3.7/10 prototype)
+> **Goal**: Production-ready autonomous dev team hub (8+/10)
+
+---
+
+## ✅ Completed (P0 — Guardrails)
+
+| #    | Item                                   | Commit    | Notes                              |
+| ---- | -------------------------------------- | --------- | ---------------------------------- |
+| P0-1 | `.env` security + `.gitignore` cleanup | `7a59994` | pnpm-lock.yaml now tracked         |
+| P0-2 | ESLint 9 flat config + Prettier        | `7a59994` | `eslint.config.mjs`, `.prettierrc` |
+| P0-3 | Zod input validation for all endpoints | `7a59994` | All webhook/API schemas            |
+| P0-4 | Vitest test infrastructure (119 tests) | `7a59994` | Unit tests across all packages     |
+| P0-5 | GitHub Actions CI pipeline             | `7a59994` | lint → typecheck → test → build    |
+
+## ✅ Completed (P1 — Production Readiness)
+
+| #    | Item                           | Commit    | Notes                                     |
+| ---- | ------------------------------ | --------- | ----------------------------------------- |
+| P1-1 | Drizzle ORM migration system   | `9cb2ecd` | 8 tables, initial migration               |
+| P1-2 | GitHub Auto-Review workflow    | `9cb2ecd` | AI-powered PR code review                 |
+| P1-3 | Webhook signature verification | `9cb2ecd` | HMAC-SHA256 for GitHub/Jira/Figma/Datadog |
+| P1-4 | OpenAPI 3.0 documentation      | `9cb2ecd` | `docs/openapi.yaml`, 14 endpoints         |
+| P1-5 | React ErrorBoundary            | `9cb2ecd` | Recovery UI with retry                    |
+| P1-6 | Rate limiting                  | `9cb2ecd` | express-rate-limit for public endpoints   |
+| P1-7 | AI model updates               | `9cb2ecd` | claude-sonnet-4/haiku-4, env-configurable |
+
+## ✅ Completed (P2 — Test Coverage & Quality)
+
+| #    | Item                      | Notes                                             |
+| ---- | ------------------------- | ------------------------------------------------- |
+| P2-1 | Test coverage expansion   | 119 → 177 tests (+58), 5 new test files           |
+|      | webhook-signature.test.ts | 18 tests — HMAC verification for 4 providers      |
+|      | rate-limit.test.ts        | 9 tests — 3 rate limiters                         |
+|      | auto-review.test.ts       | 8 tests — workflow execution, AI response parsing |
+|      | ErrorBoundary.test.tsx    | 6 tests — error catch, recovery UI                |
+|      | schema.test.ts            | 17 tests — 8 tables + 7 relations validation      |
+
+## ✅ Completed (P3 — MCP Server Implementation)
+
+| #    | Item                 | Notes                                           |
+| ---- | -------------------- | ----------------------------------------------- |
+| P3-1 | MCP Server — GitHub  | 10 tools (Octokit), `@modelcontextprotocol/sdk` |
+| P3-2 | MCP Server — Jira    | 8 tools (REST API v3), Basic Auth               |
+| P3-3 | MCP Server — Figma   | 6 tools (REST API v1), Token auth               |
+| P3-4 | MCP Server — Datadog | 6 tools (API v2), DD-API-KEY auth               |
+| P3-5 | MCP Client utility   | `MCPClient` class in workflow-engine            |
+
+## ✅ Completed (P4 — Workflow Implementation)
+
+| #    | Item                      | Notes                                               |
+| ---- | ------------------------- | --------------------------------------------------- |
+| P4-1 | Jira Auto-Dev workflow    | AI code generation from Jira issues                 |
+| P4-2 | Deploy Monitor workflow   | Deployment risk analysis + monitoring checklist     |
+| P4-3 | Incident-to-Jira workflow | Datadog alerts → root cause analysis → Jira tickets |
+| P4-4 | Worker routing            | GitHub worker routes deployment events vs PR events |
+
+## ✅ Completed (P5 — Database Maturity)
+
+| #    | Item                         | Notes                                                                     |
+| ---- | ---------------------------- | ------------------------------------------------------------------------- |
+| P5-1 | Drizzle query migration      | raw SQL → Drizzle ORM in database.ts + credential-manager.ts              |
+| P5-2 | Credential manager migration | Both auth-service and workflow-engine                                     |
+|      |                              | `query()`, `transaction()` utility functions retained for backward compat |
+
+---
+
+## 🔮 Future Considerations (P6+)
+
+| #     | Item                         | Priority | Notes                                                       |
+| ----- | ---------------------------- | -------- | ----------------------------------------------------------- |
+| P6-1  | E2E testing (Playwright)     | LOW      | Full workflow testing through UI                            |
+| P6-2  | Kubernetes manifests         | LOW      | Helm charts or kustomize for production                     |
+| P6-3  | Observability stack          | LOW      | Structured logging → ELK/Loki, metrics → Prometheus/Grafana |
+| P6-4  | Multi-tenant support         | LOW      | Org-level isolation, RBAC                                   |
+| P6-5  | Plugin architecture          | LOW      | Custom workflow steps, third-party integrations             |
+| P6-6  | Dashboard improvements       | LOW      | Real-time workflow monitoring, cost tracking charts         |
+| P6-7  | Webhook retry/DLQ            | LOW      | Dead letter queue for failed webhook processing             |
+| P6-8  | Database migrations CI       | LOW      | Automated migration check in CI pipeline                    |
+| P6-9  | MCP server integration tests | LOW      | Docker-based integration tests for MCP servers              |
+| P6-10 | MCP tool-use in workflows    | LOW      | Connect workflows to MCP servers for actual API calls       |
+
+---
+
+## 📊 Progress Summary
+
+| Phase                 | Total  | Done   | Remaining |
+| --------------------- | ------ | ------ | --------- |
+| P0 — Guardrails       | 5      | 5      | 0         |
+| P1 — Production Ready | 7      | 7      | 0         |
+| P2 — Test Coverage    | 1      | 1      | 0         |
+| P3 — MCP Servers      | 5      | 5      | 0         |
+| P4 — Workflows        | 4      | 4      | 0         |
+| P5 — DB Maturity      | 2      | 2      | 0         |
+| P6 — Future           | 10     | 0      | 10        |
+| **Total**             | **34** | **24** | **10**    |
+
+---
+
+## 🛠️ Key Commands
+
+```bash
+# Build & Test
+pnpm build              # Full monorepo build
+pnpm test               # Run all 177 tests
+pnpm lint               # ESLint check
+pnpm format:check       # Prettier check
+pnpm typecheck          # TypeScript strict check
+
+# Database
+pnpm db:generate        # Generate Drizzle migration
+pnpm db:migrate         # Run migrations
+pnpm db:push            # Push schema (dev)
+pnpm db:studio          # Drizzle Studio UI
+
+# Development
+pnpm dev:auth           # Auth service (hot reload)
+pnpm dev:webhook        # Webhook listener (hot reload)
+pnpm dev:workflow       # Workflow engine (hot reload)
+pnpm dev:dashboard      # Dashboard (Vite dev)
+
+# Docker
+pnpm docker:up          # Start full stack
+pnpm docker:down        # Stop full stack
+pnpm docker:logs        # View logs
+```
+
+## 📝 Environment Variables
+
+### Core (P0/P1)
+
+| Variable                 | Description                                         | Required            |
+| ------------------------ | --------------------------------------------------- | ------------------- |
+| `AI_MODEL_HEAVY`         | Heavy AI model (default: claude-sonnet-4-20250514)  | No                  |
+| `AI_MODEL_MEDIUM`        | Medium AI model (default: claude-sonnet-4-20250514) | No                  |
+| `AI_MODEL_LIGHT`         | Light AI model (default: claude-haiku-4-20250414)   | No                  |
+| `OPENAI_MODEL`           | OpenAI model (default: gpt-4o)                      | No                  |
+| `GITHUB_WEBHOOK_SECRET`  | GitHub webhook HMAC secret                          | No (skips if unset) |
+| `JIRA_WEBHOOK_SECRET`    | Jira webhook HMAC secret                            | No (skips if unset) |
+| `FIGMA_WEBHOOK_SECRET`   | Figma webhook HMAC secret                           | No (skips if unset) |
+| `DATADOG_WEBHOOK_SECRET` | Datadog webhook HMAC secret                         | No (skips if unset) |
+
+### MCP Servers (P3)
+
+| Variable             | Description                                          | Required        |
+| -------------------- | ---------------------------------------------------- | --------------- |
+| `GITHUB_TOKEN`       | GitHub Personal Access Token or App token            | For GitHub MCP  |
+| `JIRA_HOST`          | Jira instance hostname (e.g., yourorg.atlassian.net) | For Jira MCP    |
+| `JIRA_EMAIL`         | Jira account email                                   | For Jira MCP    |
+| `JIRA_API_TOKEN`     | Jira API token                                       | For Jira MCP    |
+| `FIGMA_ACCESS_TOKEN` | Figma Personal Access Token                          | For Figma MCP   |
+| `DD_API_KEY`         | Datadog API key                                      | For Datadog MCP |
+| `DD_APP_KEY`         | Datadog Application key                              | For Datadog MCP |
+| `DD_SITE`            | Datadog site (default: datadoghq.com)                | No              |
