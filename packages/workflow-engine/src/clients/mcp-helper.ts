@@ -1,6 +1,7 @@
-import { createLogger, getEnv, REPO_ROUTING } from '@rtb-ai-hub/shared';
+import { createLogger, getEnv, REPO_ROUTING, LABEL_REPO_ROUTING } from '@rtb-ai-hub/shared';
 import type { Environment, MCPToolCall, JiraWebhookEvent } from '@rtb-ai-hub/shared';
-import { MCPClient, getMcpClient } from './mcp-client';
+import type { IMCPClient } from './mcp-client-interface';
+import { getMcpClient } from './mcp-client';
 
 const logger = createLogger('mcp-helper');
 
@@ -41,7 +42,7 @@ export type McpCallResult<T> =
  * Returns a discriminated union — callers check `result.success` to branch.
  */
 export async function callMcpTool<T = unknown>(
-  client: MCPClient,
+  client: IMCPClient,
   toolName: string,
   input: Record<string, unknown>
 ): Promise<McpCallResult<T>> {
@@ -90,7 +91,7 @@ export type McpBatchResult = {
 export async function callMcpToolsBatch(
   calls: Array<{
     label: string;
-    client: MCPClient;
+    client: IMCPClient;
     toolName: string;
     input: Record<string, unknown>;
   }>
@@ -158,6 +159,20 @@ export type GitHubTarget = {
 export function resolveGitHubTarget(event: JiraWebhookEvent, env: Environment): GitHubTarget {
   const baseBranch = REPO_ROUTING.branches[env] || 'main';
 
+  // Priority 1: Label-based routing (LABEL_REPO_ROUTING env var)
+  const labels = event.labels || [];
+  const labelMappings = LABEL_REPO_ROUTING.mappings;
+
+  for (const label of labels) {
+    const repoStr = labelMappings[label];
+    if (repoStr && repoStr.includes('/')) {
+      const [owner, repo] = repoStr.split('/');
+      logger.info({ label, owner, repo, baseBranch, env }, 'Resolved repo from label routing');
+      return { owner, repo, baseBranch };
+    }
+  }
+
+  // Priority 2: Component-based routing (REPO_ROUTING_REPOS env var)
   const primaryComponent = event.components?.[0]?.name;
   if (primaryComponent && REPO_ROUTING.repos[primaryComponent]) {
     const repoStr = REPO_ROUTING.repos[primaryComponent];
@@ -171,11 +186,12 @@ export function resolveGitHubTarget(event: JiraWebhookEvent, env: Environment): 
     }
   }
 
+  // Priority 3: Fallback to GITHUB_REPO env var
   const { owner, repo } = getGitHubRepo(env);
   if (!owner || !repo) {
     logger.warn(
       { env, event: event.issueKey },
-      'No repo resolved — component routing miss and no fallback configured'
+      'No repo resolved — label/component routing miss and no fallback configured'
     );
   }
   return { owner, repo, baseBranch };

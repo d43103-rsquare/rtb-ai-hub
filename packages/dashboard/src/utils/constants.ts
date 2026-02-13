@@ -5,5 +5,8 @@ export const ROUTES = {
   LOGIN: '/login',
   DASHBOARD: '/dashboard',
   WORKFLOWS: '/workflows',
+  MONITORING: '/monitoring',
+  CHAT: '/chat',
+  AGENT_CHAT: '/agent-chat',
   PROFILE: '/profile',
 } as const;

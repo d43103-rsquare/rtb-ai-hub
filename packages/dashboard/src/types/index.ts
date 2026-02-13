@@ -8,7 +8,7 @@ export interface User {
   lastLogin?: string;
 }
 
-export type ServiceType = 'anthropic' | 'openai' | 'jira' | 'github' | 'figma' | 'datadog';
+export type ServiceType = 'anthropic' | 'jira' | 'github' | 'figma' | 'datadog';
 
 export type WorkflowStatus = 'pending' | 'running' | 'completed' | 'failed';
 

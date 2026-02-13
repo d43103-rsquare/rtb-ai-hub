@@ -11,7 +11,7 @@ export interface User {
   lastLogin?: Date;
 }
 
-export type ServiceType = 'anthropic' | 'openai' | 'jira' | 'github' | 'figma' | 'datadog';
+export type ServiceType = 'anthropic' | 'jira' | 'github' | 'figma' | 'datadog';
 
 export interface JiraUserMapping {
   email: string;

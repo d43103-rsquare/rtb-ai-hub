@@ -5,8 +5,14 @@ import {
   WorkflowType,
   AITier,
   DEFAULT_ENVIRONMENT,
+  QUEUE_NAMES,
 } from '@rtb-ai-hub/shared';
-import type { FigmaWebhookEvent, WorkflowExecution, Environment } from '@rtb-ai-hub/shared';
+import type {
+  FigmaWebhookEvent,
+  WorkflowExecution,
+  Environment,
+  JiraWebhookEvent,
+} from '@rtb-ai-hub/shared';
 import { anthropicClient } from '../clients/anthropic';
 import { database } from '../clients/database';
 import {
@@ -22,6 +28,7 @@ import {
   serializeFigmaContext,
   type FigmaContext,
 } from '../utils/figma-context';
+import { jiraQueue } from '../queue/queues';
 
 const logger = createLogger('figma-to-jira-workflow');
 
@@ -226,6 +233,36 @@ Format your response as JSON:
     });
 
     const mcpResults = await executeJiraMcpCalls(env, analysis, figmaContext);
+
+    // Enqueue created tasks for auto-development
+    for (const taskResult of mcpResults.tasks) {
+      if (taskResult.result.success && taskResult.result.data?.key) {
+        const syntheticEvent: JiraWebhookEvent = {
+          source: 'jira',
+          type: 'issue_updated',
+          issueKey: taskResult.result.data.key,
+          issueType: 'Task',
+          status: 'In Progress',
+          summary: taskResult.name,
+          description: '', // Will be fetched by workflow
+          projectKey: getJiraProjectKey(env),
+          labels: ['RTB-AI-HUB', 'auto-generated'],
+          timestamp: new Date().toISOString(),
+          payload: {},
+        };
+
+        await jiraQueue.add(`jira_${generateId('job')}`, {
+          event: syntheticEvent,
+          userId,
+          env,
+        });
+
+        logger.info(
+          { taskKey: taskResult.result.data.key, env },
+          'Enqueued task for auto-development'
+        );
+      }
+    }
 
     const completedAt = new Date();
     const duration = completedAt.getTime() - startedAt.getTime();

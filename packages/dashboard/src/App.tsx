@@ -1,26 +1,18 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import { useAuth } from './hooks/useAuth';
 import { Layout } from './components/layout/Layout';
-import { LoadingSpinner } from './components/common/LoadingSpinner';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { WorkflowsPage } from './pages/WorkflowsPage';
+import { MonitoringPage } from './pages/MonitoringPage';
+import { WorkflowDetailPage } from './pages/WorkflowDetailPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { ChatPage } from './pages/ChatPage';
+import { AgentChatPage } from './pages/AgentChatPage';
 import { ROUTES } from './utils/constants';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
-
-  if (isLoading) {
-    return <LoadingSpinner fullScreen />;
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to={ROUTES.LOGIN} replace />;
-  }
-
   return <>{children}</>;
 }
 
@@ -44,6 +36,46 @@ function AppRoutes() {
           <ProtectedRoute>
             <Layout>
               <WorkflowsPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={ROUTES.MONITORING}
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <MonitoringPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/monitoring/:workflowKey"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <WorkflowDetailPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={ROUTES.AGENT_CHAT}
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <AgentChatPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path={ROUTES.CHAT}
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <ChatPage />
             </Layout>
           </ProtectedRoute>
         }

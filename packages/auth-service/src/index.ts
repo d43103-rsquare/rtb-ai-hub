@@ -17,7 +17,11 @@ async function main() {
   app.use(helmet());
   app.use(
     cors({
-      origin: getEnv('DASHBOARD_URL', 'http://localhost:3000'),
+      origin: [
+        getEnv('DASHBOARD_URL', 'http://localhost:3000'),
+        'http://localhost:3001',
+        'http://localhost:3002',
+      ],
       credentials: true,
     })
   );

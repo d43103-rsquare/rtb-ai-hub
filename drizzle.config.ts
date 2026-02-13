@@ -10,5 +10,6 @@ export default defineConfig({
     database: process.env.POSTGRES_DB || 'rtb_ai_hub',
     user: process.env.POSTGRES_USER || 'postgres',
     password: process.env.POSTGRES_PASSWORD || 'postgres',
+    ssl: false,
   },
 });

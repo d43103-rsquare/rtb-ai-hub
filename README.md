@@ -1,6 +1,24 @@
 # RTB AI Hub
 
+**"팀원들 사이에서 업무를 조율하고, 반복 작업을 자동화하며, 회사 지식을 즉시 제공하는 AI 비서 시스템"**
+
 Figma 디자인 → Jira 티켓 → 자동 개발 → 코드 리뷰 → 배포 → 모니터링까지 전체 워크플로우를 자동화하는 AI 기반 자동화 허브입니다.
+
+> 💡 **처음 방문하셨나요?**
+>
+> - 비개발자/PM/디자이너라면: **[개념 설명서 (CONCEPTS.md)](./docs/CONCEPTS.md)** 먼저 읽어보세요!
+> - 개발자라면: 바로 [빠른 시작](#-빠른-시작)으로 이동하세요.
+
+## 📚 문서 가이드
+
+| 대상                          | 추천 문서                                                        | 설명                           |
+| ----------------------------- | ---------------------------------------------------------------- | ------------------------------ |
+| **비개발자** (PM/디자이너/QA) | [개념 설명서](./docs/CONCEPTS.md)                                | 쉬운 용어로 설명한 시스템 개요 |
+| **개발자** (신입)             | [개념 설명서](./docs/CONCEPTS.md) + [기술 문서](#-프로젝트-구조) | 개념 이해 후 기술 상세로       |
+| **개발자** (경력)             | 이 README + [Architecture 문서](./docs/architecture/)            | 빠르게 아키텍처 파악           |
+| **경영진/의사결정자**         | [개념 설명서](./docs/CONCEPTS.md) 중 "기대 효과" 섹션            | ROI 및 정량적 효과             |
+
+---
 
 ## 🎯 주요 기능
 
@@ -11,6 +29,84 @@ Figma 디자인 → Jira 티켓 → 자동 개발 → 코드 리뷰 → 배포 �
 - **자동 리뷰**: 모든 Pull Request에 대한 AI 코드 리뷰
 - **배포 모니터링**: AI 기반 이상 탐지를 통한 배포 후 모니터링
 - **인시던트 대응**: Datadog P1 알림에서 근본 원인 분석과 함께 Jira 티켓 자동 생성
+
+### 🤝 Communication Coordinator (커뮤니케이션 조율자)
+
+**"각 직군 사이의 통역사 + 7개 AI 에이전트가 팀원처럼 협업"**
+
+RTB AI Hub의 핵심은 **Communication Coordinator**입니다. AI가 팀원들 사이의 중간자 역할을 하여:
+
+#### 🎭 7-Agent Digital Twin (디지털 트윈)
+
+각 직무자를 대신하는 전용 AI 에이전트가 24/7 협업합니다:
+
+- 🤖 **PM Agent** (VisionKeeper) - 비즈니스 우선순위 조율
+- 🤖 **System Planner** (BlueprintMaster) - 아키텍처 설계
+- 🤖 **UX Designer** (ExperienceCraftsman) - 사용자 경험
+- 🤖 **UI Developer** (PixelPerfect) - 프론트엔드 개발
+- 🤖 **Backend Developer** (DataGuardian) - 백엔드 개발
+- 🤖 **QA** (QualityGatekeeper) - 품질 보증
+- 🤖 **Ops** (InfrastructureKeeper) - 인프라 운영
+
+**동작 예시:**
+
+```
+Slack: "/rtb-ai start RNR-123"
+
+→ 7개 에이전트가 자동 협업:
+  PM: 요구사항 분석 → System: DB 스키마 확인 → UX: 플로우 검토
+  → Backend: API 코드 생성 → QA: 테스트 케이스 작성
+
+30분 후: GitHub PR + 테스트 코드 + 리뷰어 알림 완료!
+```
+
+#### 🔄 9대 협업 자동화 기능 (Phase A+B+C 완료)
+
+**Phase A: 기본 조율 기능**
+
+- **역할별 맞춤 알림** (A-1): 같은 이벤트를 역할별로 다르게 표현 (PM은 비즈니스 영향, 개발자는 기술 상세)
+- **PR 맥락 자동 첨부** (A-2): Jira 요구사항, Figma 디자인, RTB-Wiki 지식을 PR에 자동 삽입
+- **일일 팀 다이제스트** (A-3): 매일 아침 스프린트 현황을 Slack으로 자동 요약
+
+**Phase B: 지능형 연결**
+
+- **맥락 연결 엔진** (B-1): Jira↔Figma↔GitHub↔프리뷰↔배포 간 관계를 자동 구축
+- **스마트 핸드오프** (B-2): 업무 전환 시 다음 담당자에게 브리핑 자동 생성
+- **블로커 감지** (B-3): 3일 이상 정체된 티켓을 AI가 감지하고 알림
+
+**Phase C: 고급 분석**
+
+- **PR 영향 분석** (C-1): 변경 사항의 영향 범위와 리스크를 AI가 분석
+- **기술 의사결정 저널** (C-2): "왜 이렇게 만들었는지" 자동 기록
+- **회의 준비 자동화** (C-3): 데일리 스크럼 자료를 AI가 미리 준비
+
+> 💡 **더 알아보기:**
+>
+> - 쉬운 설명: [개념 설명서 - 핵심 개념 7가지](./docs/CONCEPTS.md#4-핵심-개념-7가지)
+> - 상세 설계: [docs/designs/README.md](./docs/designs/README.md)
+> - 비전 문서: [VISION_TEAM_AI_COORDINATOR.md](./docs/VISION_TEAM_AI_COORDINATOR.md)
+
+#### 📚 RTB-Wiki 지식 자동 주입
+
+**"회사 도메인 지식을 AI가 자동으로 찾아서 제공"**
+
+```
+개발자가 Jira 티켓 시작:
+"빌딩 정보 조회 API 개발"
+
+AI가 자동 처리:
+1. "빌딩" 키워드 감지
+2. RTB-Wiki에서 obj_bld_mst 테이블 문서 자동 검색
+3. 개발 프롬프트에 테이블 스키마 자동 주입
+
+결과: 개발자가 Wiki 검색할 필요 없음!
+```
+
+**효과:**
+
+- ✅ 신입 온보딩 기간: 2주 → 3일 (78% 단축)
+- ✅ 도메인 지식 검색 시간: 제로
+- ✅ 잘못된 테이블명 사용 방지
 
 ### 인증 및 운영
 
@@ -70,8 +166,8 @@ Figma 디자인 → Jira 티켓 → 자동 개발 → 코드 리뷰 → 배포 �
              │
              ▼
     ┌────────────────────────────────────────────────────┐
-    │  MCP Servers (per-env containers)                  │
-    │  mcp-jira-int, mcp-jira-stg, mcp-figma-int, ...   │
+    │  Official MCP Servers (via SDK, no Docker)         │
+    │  GitHub, Jira, Figma, Datadog (Remote HTTP/npx)    │
     └────────┬───────────────────────────────────────────┘
              │
              ▼
@@ -178,6 +274,28 @@ WIKI_LOCAL_PATH=/workspace/rtb-wiki
 WORK_REPO_URL=https://github.com/your-org/rtb-product.git
 WORK_REPO_LOCAL_PATH=/workspace/rtb-product
 WORK_REPO_DEFAULT_BRANCH=develop
+
+# Team AI Coordinator (선택사항)
+TEAM_ROLE_CHANNELS=designer=C01234,developer=C05678,qa=C09012,pm=C03456
+TEAM_DIGEST_ENABLED=true
+TEAM_DIGEST_CRON="0 0 * * 1-5"        # 평일 오전 9시 (KST)
+SMART_HANDOFF_ENABLED=true
+BLOCKER_DETECTION_ENABLED=true
+BLOCKER_CHECK_CRON="0 2,6 * * 1-5"    # 평일 오전 11시, 오후 3시 (KST)
+BLOCKER_STALE_DAYS=3
+BLOCKER_REVIEW_DELAY_HOURS=24
+
+# C-1: Impact Analysis
+IMPACT_ANALYSIS_ENABLED=true
+
+# C-2: Decision Journal
+DECISION_JOURNAL_ENABLED=true
+DECISION_CONFIDENCE_THRESHOLD=0.7
+
+# C-3: Meeting Prep
+MEETING_PREP_ENABLED=true
+DAILY_SCRUM_PREP_CRON="50 23 * * 0-4"
+MEETING_PREP_CHANNEL=C0GENERAL
 ```
 
 **Repository 설정 설명:**
@@ -358,7 +476,7 @@ Webhook 요청 시 다음 두 가지 방법으로 환경을 지정할 수 있습
 
 각 환경은 다음과 같이 격리됩니다:
 
-- **MCP 서버 컨테이너**: 환경별로 별도의 컨테이너 실행 (예: `mcp-jira-int`, `mcp-jira-stg`, `mcp-figma-int`)
+- **MCP 서버**: 공식/커뮤니티 MCP 서버를 SDK(`@modelcontextprotocol/sdk`)로 직접 연결 (Remote HTTP / npx stdio, Docker 컨테이너 불필요)
 - **자격 증명**: 환경별 독립적인 API 키 및 OAuth 토큰 사용
 - **데이터베이스**: `workflow_executions` 및 `webhook_events` 테이블에 `env` 컬럼으로 환경 구분
 
@@ -519,21 +637,32 @@ rtb-ai-hub/
 │   │       │       ├── reviewer-agent.ts
 │   │       │       └── oracle-agent.ts
 │   │       ├── utils/
-│   │       │   └── wiki-knowledge.ts    # rtb-wiki 지식 DB 연계
+│   │       │   ├── wiki-knowledge.ts        # rtb-wiki 지식 DB 연계
+│   │       │   ├── role-notifier.ts         # 역할별 맞춤 알림 (A-1)
+│   │       │   ├── pr-description-builder.ts # PR 맥락 자동 첨부 (A-2)
+│   │       │   ├── context-engine.ts        # 맥락 연결 엔진 CRUD (B-1)
+│   │       │   ├── digest-collector.ts      # 일일 다이제스트 데이터 수집 (A-3)
+│   │       │   ├── digest-formatter.ts      # 다이제스트 Slack 포맷 (A-3)
+│   │       │   ├── digest-scheduler.ts      # 다이제스트 BullMQ 크론 (A-3)
+│   │       │   ├── blocker-detector.ts      # 블로커 감지 로직 (B-3)
+│   │       │   ├── blocker-formatter.ts     # 블로커 Slack 포맷 (B-3)
+│   │       │   └── blocker-scheduler.ts     # 블로커 BullMQ 크론 (B-3)
 │   │       └── workflows/
-│   │           ├── jira-auto-dev.ts     # 라우터 (OpenCode/Multi-Agent 전환)
-│   │           └── jira-auto-dev-multi.ts  # 멀티 에이전트 워크플로우
+│   │           ├── jira-auto-dev.ts         # 라우터 (OpenCode/Multi-Agent 전환)
+│   │           ├── jira-auto-dev-multi.ts   # 멀티 에이전트 워크플로우
+│   │           └── smart-handoff.ts         # 스마트 핸드오프 (B-2)
 │   └── dashboard/           # React 대시보드
-├── mcp-servers/             # MCP 서버 컨테이너
-│   ├── jira/
-│   ├── figma/
-│   ├── github/
-│   └── datadog/
+├── mcp-servers/
+│   └── opencode/            # OpenCode CLI용 MCP 워크플로우 도구 (3개)
 ├── infrastructure/
-│   ├── postgres/            # DB 스키마 (5개 테이블)
+│   ├── postgres/            # DB 스키마 (6개 테이블)
 │   └── redis/               # Redis 설정
 ├── drizzle/                 # DB 마이그레이션 파일
-│   └── 0001_add_env_column.sql
+│   ├── 0001_add_env_column.sql
+│   └── 0003_add_context_links.sql  # 맥락 연결 테이블
+├── docs/
+│   ├── designs/             # Team AI Coordinator 설계 문서 (6개)
+│   └── VISION_TEAM_AI_COORDINATOR.md
 ├── scripts/
 │   ├── generate-secrets.js  # 보안 키 생성기
 │   └── dev-local.sh         # 로컬 개발 환경 자동 설정
@@ -568,7 +697,7 @@ rtb-ai-hub/
 
 - **AI**: Anthropic Claude (멀티 에이전트 파이프라인 지원)
 - **통합**: Figma, Jira, GitHub, Datadog
-- **MCP**: Model Context Protocol 서버
+- **MCP**: 공식/커뮤니티 MCP 서버 (SDK 직접 연결, Docker 불필요)
 - **지식 DB**: rtb-wiki Obsidian vault 연계 (도메인 지식 자동 주입)
 
 ### 인프라
@@ -594,7 +723,7 @@ rtb-ai-hub/
 
 ### 2. Jira → 자동 개발 (jira-auto-dev)
 
-**트리거**: Jira 티켓이 "In Progress"로 전환됨 (`auto-dev-enabled` 라벨 포함)
+**트리거**: Jira 티켓이 "In Progress"로 전환됨 (`RTB-AI-HUB` 라벨 포함)
 
 **프로세스** (OpenCode 우선, Multi-Agent 폴백):
 
@@ -791,25 +920,80 @@ docker-compose exec postgres psql -U postgres -d rtb_ai_hub -c "\dt"
 
 MIT
 
-## 📚 문서
+## 📚 문서 네비게이션
 
-### 환경 설정
+### 🎯 시작하기 (대상별 추천 경로)
 
-- **[ENV_SETUP.md](./ENV_SETUP.md)** - 카테고리별 환경변수 설정 가이드 ⭐
-- **[AUTH_SETUP.md](./AUTH_SETUP.md)** - 완전한 인증 설정 가이드 (Google OAuth)
-- **[SETUP.md](./SETUP.md)** - 기본 시스템 설정 및 테스트
+#### 비개발자 (PM, 디자이너, QA, 경영진)
 
-### OpenCode 통합 (신규)
+```
+1. 개념 이해: docs/CONCEPTS.md (필독!)
+   ↓
+2. 실제 사용: docs/NON_DEV_GUIDE.md
+   ↓
+3. 기대 효과: docs/CONCEPTS.md → "6. 기대 효과" 섹션
+```
 
-- **[OPENCODE_SDK_INTEGRATION.md](./OPENCODE_SDK_INTEGRATION.md)** - OpenCode SDK 통합 완료 보고서 🎉 NEW
-- **[infrastructure/opencode/MCP_INTEGRATION.md](./infrastructure/opencode/MCP_INTEGRATION.md)** - OpenCode ↔ RTB MCP 연동 가이드 🔗 NEW
-- **[OPENCODE_INTEGRATION.md](./OPENCODE_INTEGRATION.md)** - OpenCode & Oh-My-OpenCode 개념 가이드 🚀
-- **[infrastructure/opencode/README.md](./infrastructure/opencode/README.md)** - OpenCode 설정 파일 커스터마이징
-- **[infrastructure/opencode/DOCKER_SETUP.md](./infrastructure/opencode/DOCKER_SETUP.md)** - Docker 환경 실행 가이드 🐳
+#### 신입 개발자
 
-### 기술 문서
+```
+1. 개념 파악: docs/CONCEPTS.md
+   ↓
+2. 시스템 설치: 이 README → "빠른 시작"
+   ↓
+3. 코드 이해: docs/architecture/ (아키텍처 문서)
+```
 
-- **[IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md)** - 기술 구현 세부사항
+#### 경력 개발자
+
+```
+1. 빠른 설치: 이 README → "빠른 시작"
+   ↓
+2. 아키텍처: docs/architecture/COMMUNICATION_COORDINATOR_ARCHITECTURE.md
+   ↓
+3. 상세 구현: IMPLEMENTATION_SUMMARY.md
+```
+
+---
+
+### 📖 주요 문서 목록
+
+#### 개념 및 가이드 (누구나)
+
+- **[개념 설명서 (CONCEPTS.md)](./docs/CONCEPTS.md)** ⭐ 필독! - 비개발자도 이해할 수 있는 핵심 개념
+- **[비개발자 사용 가이드 (NON_DEV_GUIDE.md)](./docs/NON_DEV_GUIDE.md)** - Slack에서 AI 에이전트 사용법
+- **[설치 완료 요약 (SETUP_COMPLETE.md)](./docs/SETUP_COMPLETE.md)** - 현재 구축 상태 및 다음 단계
+
+#### 환경 설정 (개발자)
+
+- **[ENV_SETUP.md](./ENV_SETUP.md)** - 카테고리별 환경변수 설정 가이드
+- **[AUTH_SETUP.md](./AUTH_SETUP.md)** - Google OAuth 인증 설정
+- **[DOCKER_LOCAL_DEV.md](./docs/DOCKER_LOCAL_DEV.md)** - Docker 기반 로컬 개발 환경
+
+#### Communication Coordinator (핵심 아키텍처)
+
+- **[Communication Coordinator Architecture](./docs/architecture/COMMUNICATION_COORDINATOR_ARCHITECTURE.md)** - 4-Layer 아키텍처 설계
+- **[7-Agent Digital Twins](./docs/architecture/OPENCLAW_AGENT_DIGITAL_TWINS.md)** - AI 에이전트 협업 구조
+- **[Agent Identities](./docs/architecture/AGENT_IDENTITIES.md)** - 7개 에이전트 페르소나 정의
+- **[Agent System Prompts](./docs/architecture/AGENT_SYSTEM_PROMPTS.md)** - 에이전트별 시스템 프롬프트
+- **[Communication Pattern Engine](./docs/architecture/COMMUNICATION_PATTERN_ENGINE.md)** - 9가지 커뮤니케이션 패턴
+
+#### Team AI Coordinator (9개 기능)
+
+- **[Vision Document](./docs/VISION_TEAM_AI_COORDINATOR.md)** - 팀 AI 조율자 비전
+- **[설계 문서 (Phase A+B+C)](./docs/designs/README.md)** - 9개 기능별 상세 설계
+
+#### OpenClaw Integration (에이전트 오케스트레이션)
+
+- **[OpenClaw Gateway Integration](./docs/architecture/OPENCLAW_GATEWAY_INTEGRATION.md)** - Gateway 양방향 통신
+- **[OpenClaw Integration Guide](./docs/OPENCLAW_INTEGRATION.md)** - OpenClaw 개념 및 설정
+- **[OpenClaw Setup](./infrastructure/openclaw/SETUP.md)** - Slack App 설정 가이드
+
+#### 기술 문서 (개발자)
+
+- **[Implementation Summary](./IMPLEMENTATION_SUMMARY.md)** - 기술 구현 세부사항
+- **[Git Branch Strategy](./docs/GIT_BRANCH_STRATEGY.md)** - 브랜치 전략 (main/release/develop)
+- **[Known Issues](./docs/KNOWN_ISSUES.md)** - 알려진 이슈 및 해결 방법
 
 ## 🔗 외부 링크
 

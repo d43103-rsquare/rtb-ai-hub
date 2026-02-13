@@ -1,5 +1,28 @@
 # RTB AI Hub - 구현 완료 요약
 
+> **Note (2026-02-08)**: 이 문서의 일부 내용은 최신 상태가 아닙니다. P6에서 자격증명 테이블이 제거되었고, P7에서 멀티 환경(int/stg/prd) 지원이 추가되었습니다. 최신 정보는 [docs/TODO.md](./docs/TODO.md)를 참조하세요.
+
+### 최근 추가: Wave 기반 병렬 실행 (2026-02-09)
+
+- **Wave 시스템**: 멀티 에이전트 파이프라인에 wave 기반 병렬 실행 추가
+- **타입 확장**: `AgentPipelineStep`에 `wave?: number`, `dependsOn?: AgentRole[]` 필드 추가
+- **성능 향상**: 독립적인 에이전트를 같은 wave에 배치하여 최대 40% 워크플로우 시간 단축
+- **하위 호환성**: wave 필드 없으면 기본값 1로 순차 실행 (기존 동작 유지)
+- **구현 파일**:
+  - `packages/shared/src/agent-types.ts` - 타입 정의
+  - `packages/workflow-engine/src/agents/pipelines.ts` - 파이프라인 정의
+  - `packages/workflow-engine/src/agents/orchestrator.ts` - 실행 로직
+- **문서**: [docs/WAVE_PARALLEL_EXECUTION.md](./docs/WAVE_PARALLEL_EXECUTION.md) - 완전한 기술 문서
+
+### 최근 추가: 멀티 환경 지원 (2026-02-08)
+
+- **환경**: int(개발), stg(검증), prd(운영) — 단일 인프라에서 논리적 분리
+- **라우팅**: `?env=stg` 쿼리 파라미터 또는 `X-Env: stg` 헤더
+- **데이터 흐름**: webhook → BullMQ (env in job) → workflow (env param) → MCP server (env-specific)
+- **DB**: `env VARCHAR(10)` 컬럼 추가 (workflow_executions, webhook_events)
+- **Docker**: 8개 환경별 MCP 컨테이너 (4서비스 × int/stg)
+- **테스트**: 140개 전체 통과
+
 ## 🎉 전체 구현 완료
 
 Google Workspace OAuth 기반 인증 시스템과 사용자별 자격증명 관리 기능이 완전히 구현되었습니다.
@@ -9,6 +32,7 @@ Google Workspace OAuth 기반 인증 시스템과 사용자별 자격증명 관�
 ### 1. 데이터베이스 스키마 ✅
 
 **추가된 테이블:**
+
 - `users`: Google Workspace 사용자 정보
 - `user_credentials`: 암호화된 API 키 및 OAuth 토큰
 - `credential_usage_log`: 자격증명 사용 감사 로그
@@ -22,6 +46,7 @@ Google Workspace OAuth 기반 인증 시스템과 사용자별 자격증명 관�
 완전한 인증 및 자격증명 관리 서비스:
 
 **구조:**
+
 ```
 packages/auth-service/
 ├── src/
@@ -47,12 +72,13 @@ packages/auth-service/
 ```
 
 **API 엔드포인트:**
+
 - `GET /auth/google/login` - Google OAuth URL 생성
 - `GET /auth/google/callback` - Google OAuth 콜백
 - `POST /auth/google/logout` - 로그아웃
 - `POST /auth/refresh` - 토큰 갱신
 - `GET /api/me` - 현재 사용자 정보
-- `POST /credentials/api-key` - API 키 저장 (Anthropic, OpenAI)
+- `POST /credentials/api-key` - API 키 저장 (Anthropic)
 - `GET /credentials` - 사용자 자격증명 목록
 - `DELETE /credentials/:service` - 자격증명 삭제
 - `GET /oauth/:service/connect` - OAuth 연결 URL 생성
@@ -61,10 +87,12 @@ packages/auth-service/
 ### 3. Webhook Listener 인증 통합 ✅
 
 **선택적 인증 미들웨어:**
+
 - Bearer 토큰을 통한 사용자 식별
 - 사용자 ID를 큐 데이터에 포함
 
 **수정된 파일:**
+
 - `packages/webhook-listener/src/middleware/auth.ts` (신규)
 - `packages/webhook-listener/src/routes/figma.ts`
 - `packages/webhook-listener/src/routes/jira.ts`
@@ -74,11 +102,13 @@ packages/auth-service/
 ### 4. Workflow Engine 사용자별 자격증명 ✅
 
 **CredentialManager 통합:**
+
 - 사용자별 Anthropic API 키 조회
 - API 키가 없으면 기본 환경변수 사용 (fallback)
 - `workflow_executions` 테이블에 `user_id` 저장
 
 **수정된 파일:**
+
 - `packages/workflow-engine/src/credential/` (복사됨)
 - `packages/workflow-engine/src/clients/anthropic.ts` - 생성자에 API 키 파라미터 추가
 - `packages/workflow-engine/src/clients/database.ts` - query helper 함수 추가, user_id 저장
@@ -88,11 +118,13 @@ packages/auth-service/
 ### 5. 환경변수 설정 및 문서화 ✅
 
 **파일:**
+
 - `.env.example` - 모든 필수 환경변수 포함
 - `AUTH_SETUP.md` - 완전한 설정 가이드 (4,000+ 단어)
 - `scripts/generate-secrets.js` - 암호화 키 및 JWT 시크릿 생성 스크립트
 
 **추가된 환경변수:**
+
 ```bash
 # Google OAuth
 GOOGLE_CLIENT_ID
@@ -153,21 +185,25 @@ DASHBOARD_URL
 ## 🔐 보안 기능
 
 ### 1. API 키 암호화
+
 - **알고리즘**: AES-256-GCM
 - **키 길이**: 256비트 (64자 hex)
 - **저장 형식**: `{ iv, encrypted, authTag }`
 
 ### 2. JWT 세션 관리
+
 - **세션 토큰**: 7일 유효
 - **리프레시 토큰**: 30일 유효
 - **자동 갱신**: 토큰 만료 전 자동 갱신
 - **쿠키 보안**: HttpOnly, Secure (프로덕션), SameSite=Lax
 
 ### 3. Workspace 도메인 제한
+
 - `ALLOWED_WORKSPACE_DOMAINS` 설정으로 특정 도메인만 허용
 - 로그인 시 도메인 검증
 
 ### 4. 자격증명 사용 감사
+
 - 모든 API 키 사용이 `credential_usage_log`에 기록
 - IP 주소, User Agent, 성공 여부 추적
 
@@ -176,18 +212,22 @@ DASHBOARD_URL
 ### 신규 파일 (60+개)
 
 **Auth Service:**
+
 - 12개 TypeScript 파일
 - 3개 설정 파일 (package.json, tsconfig.json, Dockerfile)
 
 **공유 타입:**
+
 - `packages/shared/src/auth-types.ts` (15개 타입)
 
 **문서:**
+
 - `AUTH_SETUP.md` (4,000+ 단어)
 - `IMPLEMENTATION_SUMMARY.md` (이 파일)
 - `scripts/generate-secrets.js`
 
 **수정된 기존 파일:**
+
 - Webhook Listener: 5개 파일
 - Workflow Engine: 6개 파일
 - Shared: 2개 파일
@@ -314,7 +354,7 @@ docker exec rtb-postgres psql -U postgres -d rtb_ai_hub \
 
 ### 추가 구현이 필요한 것
 
-1. **Dashboard UI**: 
+1. **Dashboard UI**:
    - 로그인 페이지
    - 자격증명 관리 화면
    - OAuth 연결 버튼
@@ -382,6 +422,7 @@ docker exec rtb-postgres psql -U postgres -d rtb_ai_hub \
 ---
 
 **문의 및 지원:**
+
 - 설정 가이드: `AUTH_SETUP.md`
 - 시스템 설정: `SETUP.md`
 - 프로젝트 개요: `README.md`

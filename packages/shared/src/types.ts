@@ -2,6 +2,11 @@
  * Shared Types for RTB AI Hub
  */
 
+// Environment Types
+export const ENVIRONMENTS = ['int', 'stg', 'prd'] as const;
+export type Environment = (typeof ENVIRONMENTS)[number];
+export const DEFAULT_ENVIRONMENT: Environment = 'int';
+
 // Webhook Event Types
 export type FigmaWebhookEvent = {
   source: 'figma';
@@ -13,6 +18,20 @@ export type FigmaWebhookEvent = {
   payload: Record<string, any>;
 };
 
+export enum JiraIssueType {
+  STORY = 'Story',
+  TASK = 'Task',
+  SUBTASK = 'Sub-task',
+  BUG = 'Bug',
+  EPIC = 'Epic',
+}
+
+export type JiraComponent = {
+  id: string;
+  name: string;
+  description?: string;
+};
+
 export type JiraWebhookEvent = {
   source: 'jira';
   type: 'issue_updated' | 'issue_created';
@@ -21,6 +40,9 @@ export type JiraWebhookEvent = {
   status: string;
   summary: string;
   description?: string;
+  projectKey?: string;
+  components?: JiraComponent[];
+  labels?: string[];
   customFields?: Record<string, any>;
   timestamp: string;
   payload: Record<string, any>;
@@ -80,6 +102,7 @@ export type WorkflowExecution = {
   output?: any;
   error?: string;
   userId?: string | null;
+  env?: Environment;
   aiModel?: string;
   tokensUsed?: {
     input: number;
@@ -93,8 +116,6 @@ export type WorkflowExecution = {
 
 // AI Client Types
 export enum AIModel {
-  GPT4 = 'gpt-4',
-  GPT4_TURBO = 'gpt-4-turbo-preview',
   CLAUDE_OPUS = 'claude-3-opus-20240229',
   CLAUDE_SONNET = 'claude-3-5-sonnet-20240620',
   CLAUDE_HAIKU = 'claude-3-haiku-20240307',

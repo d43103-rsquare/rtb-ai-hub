@@ -57,6 +57,7 @@ describe('DB Schema', () => {
       expect(columns.completedAt).toBeDefined();
       expect(columns.duration).toBeDefined();
       expect(columns.userId).toBeDefined();
+      expect(columns.env).toBeDefined();
     });
 
     it('webhookEvents has required columns', () => {
@@ -67,6 +68,7 @@ describe('DB Schema', () => {
       expect(columns.payload).toBeDefined();
       expect(columns.processed).toBeDefined();
       expect(columns.workflowExecutionId).toBeDefined();
+      expect(columns.env).toBeDefined();
     });
 
     it('users has required columns', () => {

@@ -13,6 +13,23 @@ build/
 .env.local
 .env.*.local
 
+# Category-based environment files (keep examples and base, ignore sensitive files)
+.env.auth
+.env.services
+.env.services.bak
+.env.ai
+.env.advanced
+.env.docker-dev
+.env.openclaw
+
+# Note: .env.base is NOT ignored - it contains no sensitive info and can be committed
+
+# Screenshots & presentation temp files
+*.png
+~$*
+playwright-report/
+test-results/
+
 # Logs
 logs/
 *.log

@@ -1,0 +1,96 @@
+version: '3.8'
+
+# Local Development with Docker Infrastructure
+# - DB and external services run in Docker
+# - Application services run locally (for hot reload)
+# - OpenClaw Gateway runs in Docker
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: rtb-postgres-dev
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rtb_ai_hub}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    networks:
+      - rtb-dev-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: rtb-redis-dev
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction
+    volumes:
+      - redis-dev-data:/data
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    networks:
+      - rtb-dev-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  openclaw-gateway:
+    build:
+      context: ./infrastructure/openclaw
+      dockerfile: Dockerfile
+    container_name: rtb-openclaw-gateway-dev
+    environment:
+      NODE_ENV: development
+      OPENCLAW_GATEWAY_MODE: ${OPENCLAW_GATEWAY_MODE:-http}
+      OPENCLAW_GATEWAY_PORT: ${OPENCLAW_GATEWAY_PORT:-3000}
+      OPENCLAW_GATEWAY_HOST: 0.0.0.0
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_HOOKS_TOKEN:-rtb-ai-hub-openclaw-hooks-token-2026}
+      OPENCLAW_HOOKS_TOKEN: ${OPENCLAW_HOOKS_TOKEN:-rtb-ai-hub-openclaw-hooks-token-2026}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN}
+      SLACK_APP_TOKEN: ${SLACK_APP_TOKEN}
+      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET}
+      # Use host.docker.internal to reach local services
+      RTB_HUB_WEBHOOK_URL: ${RTB_HUB_WEBHOOK_URL:-http://host.docker.internal:4000/webhooks/openclaw}
+      RTB_HUB_API_URL: ${RTB_HUB_API_URL:-http://host.docker.internal:4000}
+      RTB_INTERNAL_API_TOKEN: ${RTB_INTERNAL_API_TOKEN}
+      OPENCLAW_AGENTS_ENABLED: ${OPENCLAW_AGENTS_ENABLED:-true}
+      OPENCLAW_AGENT_MODE: ${OPENCLAW_AGENT_MODE:-multi}
+      OPENCLAW_COORDINATOR_AGENT: ${OPENCLAW_COORDINATOR_AGENT:-pm-agent}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - '${OPENCLAW_GATEWAY_PORT:-3000}:3000'
+    volumes:
+      - ./infrastructure/openclaw:/app/config:ro
+      - openclaw-dev-data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - rtb-dev-network
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  rtb-dev-network:
+    driver: bridge
+
+volumes:
+  postgres-dev-data:
+  redis-dev-data:
+  openclaw-dev-data:

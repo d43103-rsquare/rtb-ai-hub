@@ -12,11 +12,11 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - '${POSTGRES_PORT:-5432}:5432'
     networks:
       - rtb-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -29,81 +29,14 @@ services:
       - redis-data:/data
       - ./infrastructure/redis/redis.conf:/usr/local/etc/redis/redis.conf
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - '${REDIS_PORT:-6379}:6379'
     networks:
       - rtb-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
-
-  mcp-jira:
-    build:
-      context: ./mcp-servers/jira
-      dockerfile: Dockerfile
-    container_name: rtb-mcp-jira
-    environment:
-      JIRA_HOST: ${JIRA_HOST}
-      JIRA_EMAIL: ${JIRA_EMAIL}
-      JIRA_API_TOKEN: ${JIRA_API_TOKEN}
-    networks:
-      - rtb-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  mcp-figma:
-    build:
-      context: ./mcp-servers/figma
-      dockerfile: Dockerfile
-    container_name: rtb-mcp-figma
-    environment:
-      FIGMA_ACCESS_TOKEN: ${FIGMA_ACCESS_TOKEN}
-    networks:
-      - rtb-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  mcp-github:
-    build:
-      context: ./mcp-servers/github
-      dockerfile: Dockerfile
-    container_name: rtb-mcp-github
-    environment:
-      GITHUB_TOKEN: ${GITHUB_TOKEN}
-    networks:
-      - rtb-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  mcp-datadog:
-    build:
-      context: ./mcp-servers/datadog
-      dockerfile: Dockerfile
-    container_name: rtb-mcp-datadog
-    environment:
-      DD_API_KEY: ${DD_API_KEY}
-      DD_APP_KEY: ${DD_APP_KEY}
-    networks:
-      - rtb-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
   workflow-engine:
     build:
@@ -128,18 +61,16 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      mcp-jira:
-        condition: service_healthy
-      mcp-figma:
-        condition: service_healthy
-      mcp-github:
-        condition: service_healthy
-      mcp-datadog:
-        condition: service_healthy
     networks:
       - rtb-network
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://localhost:3001/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -157,14 +88,14 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
     ports:
-      - "${WEBHOOK_PORT:-4000}:4000"
+      - '${WEBHOOK_PORT:-4000}:4000'
     depends_on:
       redis:
         condition: service_healthy
     networks:
       - rtb-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:4000/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -179,18 +110,67 @@ services:
       NODE_ENV: ${NODE_ENV:-development}
       VITE_API_URL: http://localhost:4000
     ports:
-      - "${DASHBOARD_PORT:-3000}:80"
+      - '${DASHBOARD_PORT:-3000}:80'
     depends_on:
       webhook-listener:
         condition: service_healthy
     networks:
       - rtb-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:80']
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
+
+  openclaw-gateway:
+    build:
+      context: ./infrastructure/openclaw
+      dockerfile: Dockerfile
+    container_name: rtb-openclaw-gateway
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      # Gateway Configuration
+      OPENCLAW_GATEWAY_MODE: ${OPENCLAW_GATEWAY_MODE:-http}
+      OPENCLAW_GATEWAY_PORT: ${OPENCLAW_GATEWAY_PORT:-3000}
+      OPENCLAW_GATEWAY_HOST: ${OPENCLAW_GATEWAY_HOST:-0.0.0.0}
+      # Security
+      OPENCLAW_HOOKS_TOKEN: ${OPENCLAW_HOOKS_TOKEN:-rtb-ai-hub-openclaw-hooks-token-2026}
+      # Slack Integration
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN}
+      SLACK_APP_TOKEN: ${SLACK_APP_TOKEN}
+      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET}
+      # RTB Hub Integration
+      RTB_HUB_WEBHOOK_URL: ${RTB_HUB_WEBHOOK_URL:-http://webhook-listener:4000/webhooks/openclaw}
+      RTB_HUB_API_URL: ${RTB_HUB_API_URL:-http://webhook-listener:4000}
+      RTB_INTERNAL_API_TOKEN: ${RTB_INTERNAL_API_TOKEN}
+      # Agent Configuration
+      OPENCLAW_AGENTS_ENABLED: ${OPENCLAW_AGENTS_ENABLED:-true}
+      OPENCLAW_AGENT_MODE: ${OPENCLAW_AGENT_MODE:-multi}
+      OPENCLAW_COORDINATOR_AGENT: ${OPENCLAW_COORDINATOR_AGENT:-pm-agent}
+      # Redis for Agent State
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - '${OPENCLAW_GATEWAY_PORT:-3000}:3000'
+    volumes:
+      - ./infrastructure/openclaw:/app/config:ro
+      - openclaw-data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      webhook-listener:
+        condition: service_healthy
+    networks:
+      - rtb-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 networks:
   rtb-network:
@@ -199,3 +179,4 @@ networks:
 volumes:
   postgres-data:
   redis-data:
+  openclaw-data:

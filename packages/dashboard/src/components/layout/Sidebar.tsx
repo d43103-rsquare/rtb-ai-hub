@@ -10,6 +10,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const navItems = [
     { to: ROUTES.DASHBOARD, icon: '📊', label: 'Dashboard' },
     { to: ROUTES.WORKFLOWS, icon: '⚡', label: 'Workflows' },
+    { to: ROUTES.MONITORING, icon: '🔴', label: 'Monitoring' },
+    { to: ROUTES.AGENT_CHAT, icon: '🤖', label: 'Agent Chat' },
+    { to: ROUTES.CHAT, icon: '💬', label: 'AI Chat' },
     { to: ROUTES.PROFILE, icon: '👤', label: 'Profile' },
   ];
 

@@ -1,0 +1,95 @@
+{
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "auth": {
+      "mode": "token"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "anthropic/claude-sonnet-4-20250514"
+      },
+      "models": {
+        "anthropic/claude-sonnet-4-20250514": {}
+      },
+      "maxConcurrent": 4,
+      "subagents": {
+        "maxConcurrent": 8
+      }
+    },
+    "list": [
+      {
+        "id": "main",
+        "model": "anthropic/claude-sonnet-4-20250514",
+        "subagents": {
+          "allowAgents": ["*"]
+        }
+      },
+      {
+        "id": "pm-agent",
+        "model": "anthropic/claude-sonnet-4-20250514",
+        "subagents": {
+          "allowAgents": ["*"]
+        }
+      },
+      {
+        "id": "developer-agent",
+        "model": "anthropic/claude-sonnet-4-20250514",
+        "subagents": {
+          "allowAgents": ["*"]
+        }
+      },
+      {
+        "id": "teamlead-agent",
+        "model": "anthropic/claude-sonnet-4-20250514",
+        "subagents": {
+          "allowAgents": ["*"]
+        }
+      },
+      {
+        "id": "ops-agent",
+        "model": "anthropic/claude-sonnet-4-20250514",
+        "subagents": {
+          "allowAgents": ["*"]
+        }
+      }
+    ]
+  },
+  "hooks": {
+    "enabled": true,
+    "path": "/hooks",
+    "token": "${OPENCLAW_HOOKS_TOKEN}"
+  },
+  "channels": {
+    "slack": {
+      "enabled": true,
+      "dm": {
+        "enabled": true,
+        "policy": "pairing"
+      }
+    }
+  },
+  "plugins": {
+    "entries": {
+      "slack": {
+        "enabled": true
+      }
+    }
+  },
+  "skills": {
+    "entries": {
+      "rtb-hub": {
+        "enabled": true,
+        "env": {
+          "RTB_API_URL": "${RTB_API_URL}",
+          "RTB_API_TOKEN": "${RTB_API_TOKEN}"
+        }
+      }
+    }
+  },
+  "logging": {
+    "level": "info"
+  }
+}

@@ -1,9 +1,25 @@
 # 📚 문서 업데이트 완료
 
+## 2026-02-08: 멀티 환경 지원 문서 업데이트
+
+### 업데이트된 파일
+
+- ✅ **README.md** — 멀티 환경 섹션 추가, 아키텍처 다이어그램 업데이트, webhook 예제 환경 파라미터 추가
+- ✅ **SETUP.md** — 환경별 테스트 명령어, 환경 설정 가이드 추가
+- ✅ **ROADMAP.md** — 멀티 환경 완료 항목 추가
+- ✅ **docs/TODO.md** — P7 멀티 환경 완료 섹션 추가
+- ✅ **TODO.md** — 멀티 환경 작업 체크리스트 추가
+- ✅ **docs/openapi.yaml** — env 쿼리 파라미터, X-Env 헤더 문서화
+- ✅ **.env.example** — 환경별 자격증명 플레이스홀더 추가 (이전에 완료)
+
+---
+
 ## 업데이트된 파일 목록
 
 ### 1. README.md ✅
+
 **변경사항:**
+
 - ✅ Features 섹션에 "Authentication & Security" 추가
 - ✅ Architecture 다이어그램에 Auth Service 통합
 - ✅ Quick Start에 Google OAuth 설정 가이드 추가
@@ -13,7 +29,9 @@
 - ✅ Documentation 섹션 신규 추가 (AUTH_SETUP.md 등 링크)
 
 ### 2. docker-compose.test.yml ✅
+
 **변경사항:**
+
 - ✅ auth-service 컨테이너 추가
   - 포트: 4001
   - 환경변수: Google OAuth, JWT, 암호화 키, 서비스 OAuth
@@ -22,13 +40,16 @@
 - ✅ webhook-listener에 JWT_SECRET 추가
 
 ### 3. .env.example ✅
+
 **이미 업데이트 완료:**
+
 - ✅ Google OAuth 설정 (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET 등)
 - ✅ 보안 키 (JWT_SECRET, CREDENTIAL_ENCRYPTION_KEY)
 - ✅ 서비스 OAuth 설정 (Jira, GitHub, Figma, Datadog)
 - ✅ Auth Service 포트 및 URL 설정
 
 ### 4. 신규 문서 (이미 생성됨) ✅
+
 - ✅ **AUTH_SETUP.md** (4,000+ 단어) - 완전한 인증 설정 가이드
 - ✅ **IMPLEMENTATION_SUMMARY.md** - 구현 요약 및 기술 세부사항
 - ✅ **scripts/generate-secrets.js** - 보안 키 생성 스크립트
@@ -51,16 +72,19 @@ rtb-ai-hub/
 ## 🎯 사용자가 읽어야 할 문서 순서
 
 ### 신규 사용자 (처음 시작)
+
 1. **README.md** - 프로젝트 개요 및 빠른 시작
 2. **AUTH_SETUP.md** - Google OAuth 설정 (필수)
 3. **SETUP.md** - 추가 시스템 설정 및 테스트
 
 ### 개발자 (구현 이해)
+
 1. **README.md** - 아키텍처 및 기능 개요
 2. **IMPLEMENTATION_SUMMARY.md** - 기술 구현 세부사항
 3. **AUTH_SETUP.md** - 인증 시스템 동작 방식
 
 ### 운영자 (배포)
+
 1. **AUTH_SETUP.md** - 보안 설정 및 키 관리
 2. **README.md** - 보안 모범 사례
 3. **SETUP.md** - 프로덕션 배포 노트
@@ -68,6 +92,7 @@ rtb-ai-hub/
 ## 📋 README.md 주요 변경사항 상세
 
 ### Before (기존)
+
 ```markdown
 ## 🎯 Features
 
@@ -76,14 +101,17 @@ rtb-ai-hub/
 ```
 
 ### After (업데이트)
+
 ```markdown
 ## 🎯 Features
 
 ### Core Workflows
+
 - **Figma → Jira**: ...
 - **Jira → Auto-Dev**: ...
 
-### Authentication & Security  # 🆕 추가
+### Authentication & Security # 🆕 추가
+
 - **Google Workspace OAuth**: Company account-based access control
 - **User-specific Credentials**: Encrypted storage of API keys
 - **Service OAuth Integration**: Seamless connection to external services
@@ -92,19 +120,22 @@ rtb-ai-hub/
 ```
 
 ### 아키텍처 다이어그램
+
 - **Before**: Auth Service 없음
 - **After**: Auth Service 중심 다이어그램 (Google OAuth → Auth Service → Credentials → Workflow)
 
 ### Quick Start
+
 - **Before**: 직접 API 키 입력
-- **After**: 
+- **After**:
   1. 보안 키 생성 (`node scripts/generate-secrets.js`)
   2. Google OAuth 설정
   3. 로그인 후 사용자별 API 키 등록
 
 ### Security 섹션
+
 - **Before**: 간단한 주의사항 4줄
-- **After**: 
+- **After**:
   - 구현된 보안 기능 7가지 (상세 설명)
   - 보안 모범 사례 체크리스트
   - AUTH_SETUP.md 링크
@@ -130,6 +161,7 @@ IMPLEMENTATION_SUMMARY.md
 ## ✅ 업데이트 검증
 
 ### README.md
+
 - [x] Features 섹션에 인증 시스템 포함
 - [x] Architecture 다이어그램에 Auth Service 표시
 - [x] Quick Start에 Google OAuth 설정 추가
@@ -138,6 +170,7 @@ IMPLEMENTATION_SUMMARY.md
 - [x] Documentation 섹션 추가
 
 ### docker-compose.test.yml
+
 - [x] auth-service 컨테이너 정의
 - [x] 환경변수 완전히 설정
 - [x] 헬스체크 추가
@@ -145,6 +178,7 @@ IMPLEMENTATION_SUMMARY.md
 - [x] 포트 매핑 (4001)
 
 ### .env.example
+
 - [x] Google OAuth 변수 (4개)
 - [x] 보안 키 변수 (2개)
 - [x] 서비스 OAuth 변수 (8개)
@@ -157,6 +191,7 @@ IMPLEMENTATION_SUMMARY.md
 ### 사용자 관점에서 변경된 점:
 
 **Before (인증 없음):**
+
 ```bash
 # 1. .env에 API 키 입력 (모든 사용자가 공유)
 ANTHROPIC_API_KEY=sk-ant-xxx
@@ -169,6 +204,7 @@ curl -X POST http://localhost:4000/webhooks/figma -d '{...}'
 ```
 
 **After (인증 포함):**
+
 ```bash
 # 1. 보안 키 생성
 node scripts/generate-secrets.js

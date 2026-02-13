@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS workflow_executions (
   started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
   completed_at TIMESTAMP WITH TIME ZONE,
   duration INTEGER,
+  env VARCHAR(10) NOT NULL DEFAULT 'int',
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
@@ -56,6 +57,7 @@ CREATE INDEX IF NOT EXISTS idx_workflow_executions_type ON workflow_executions(t
 CREATE INDEX IF NOT EXISTS idx_workflow_executions_status ON workflow_executions(status);
 CREATE INDEX IF NOT EXISTS idx_workflow_executions_started_at ON workflow_executions(started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_workflow_executions_user_id ON workflow_executions(user_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_executions_env ON workflow_executions(env);
 
 CREATE TRIGGER update_workflow_executions_updated_at
   BEFORE UPDATE ON workflow_executions
@@ -86,12 +88,14 @@ CREATE TABLE IF NOT EXISTS webhook_events (
   payload JSONB NOT NULL,
   processed BOOLEAN NOT NULL DEFAULT FALSE,
   workflow_execution_id VARCHAR(255),
+  env VARCHAR(10) NOT NULL DEFAULT 'int',
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_webhook_events_source ON webhook_events(source);
 CREATE INDEX IF NOT EXISTS idx_webhook_events_processed ON webhook_events(processed);
 CREATE INDEX IF NOT EXISTS idx_webhook_events_created_at ON webhook_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_webhook_events_env ON webhook_events(env);
 
 -- Metrics
 CREATE TABLE IF NOT EXISTS metrics (

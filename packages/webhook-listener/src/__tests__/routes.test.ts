@@ -77,6 +77,7 @@ describe('Figma webhook route', () => {
           fileKey: 'abc123',
           fileName: 'My Design',
         }),
+        env: 'int',
       }),
       expect.objectContaining({
         jobId: expect.stringMatching(/^figma_/),
@@ -120,6 +121,7 @@ describe('Figma webhook route', () => {
         event: expect.objectContaining({
           type: 'FILE_UPDATE',
         }),
+        env: 'int',
       }),
       expect.any(Object)
     );
@@ -217,6 +219,7 @@ describe('GitHub webhook route', () => {
           prNumber: 42,
           prTitle: 'Add authentication',
         }),
+        env: 'int',
       }),
       expect.any(Object)
     );
@@ -283,6 +286,7 @@ describe('Datadog webhook route', () => {
           title: 'High error rate detected',
           priority: 'P1',
         }),
+        env: 'int',
       }),
       expect.any(Object)
     );
@@ -311,6 +315,7 @@ describe('Datadog webhook route', () => {
           type: 'alert',
           priority: 'P2',
         }),
+        env: 'int',
       }),
       expect.any(Object)
     );
@@ -331,6 +336,7 @@ describe('Datadog webhook route', () => {
         event: expect.objectContaining({
           service: 'api-gateway',
         }),
+        env: 'int',
       }),
       expect.any(Object)
     );

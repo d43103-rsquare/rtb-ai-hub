@@ -3,9 +3,10 @@
 ## 빠른 시작
 
 ### 1. 사전 요구사항
+
 - Docker & Docker Compose 설치
 - Git 설치
-- AI 서비스용 API 키 (Anthropic, OpenAI)
+- AI 서비스용 API 키 (Anthropic Claude)
 
 ### 2. 클론 및 설정
 
@@ -21,12 +22,8 @@ cp .env.example .env
 `.env`를 편집하고 실제 API 키를 추가하세요:
 
 ```bash
-# Figma→Jira 워크플로우에 필수
+# AI (Claude only)
 ANTHROPIC_API_KEY=sk-ant-api03-xxxxxxxxxxxxxxxxxxxx
-
-# 선택사항 (향후 워크플로우용)
-OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx
-OMO_API_KEY=your-omo-key-here
 
 # 외부 서비스 (MCP 통합 테스트 준비가 되었을 때 추가)
 JIRA_HOST=your-org.atlassian.net
@@ -50,6 +47,7 @@ docker-compose -f docker-compose.test.yml ps
 ```
 
 예상 출력 (모두 정상):
+
 ```
 NAME                   STATUS
 rtb-postgres           Up (healthy)
@@ -65,7 +63,18 @@ rtb-workflow-engine    Up (healthy)
 Figma webhook을 전송하여 AI 분석을 트리거합니다:
 
 ```bash
+# 기본 환경 (int)
 curl -X POST http://localhost:4000/webhooks/figma \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event_type": "FILE_UPDATE",
+    "file_key": "abc123",
+    "file_name": "Mobile App Redesign",
+    "file_url": "https://figma.com/file/abc123"
+  }'
+
+# STG 환경으로 전송
+curl -X POST http://localhost:4000/webhooks/figma?env=stg \
   -H "Content-Type: application/json" \
   -d '{
     "event_type": "FILE_UPDATE",
@@ -76,17 +85,20 @@ curl -X POST http://localhost:4000/webhooks/figma \
 ```
 
 **예상 동작:**
+
 - 반환: `{"status":"accepted","eventId":"abc123"}`
 - Workflow engine이 작업 처리 (로그 확인)
 - AI가 Figma 디자인 분석
 - 결과가 PostgreSQL에 저장됨
 
 **로그 확인:**
+
 ```bash
 docker-compose -f docker-compose.test.yml logs -f workflow-engine
 ```
 
 **데이터베이스 확인:**
+
 ```bash
 docker exec rtb-postgres psql -U postgres -d rtb_ai_hub \
   -c "SELECT id, type, status, ai_model, cost_usd, started_at, completed_at FROM workflow_executions ORDER BY created_at DESC LIMIT 5;"
@@ -149,6 +161,7 @@ curl -X POST http://localhost:4000/webhooks/datadog \
 ## 문제 해결
 
 ### 컨테이너가 시작되지 않음
+
 ```bash
 # 오류 로그 확인
 docker-compose -f docker-compose.test.yml logs
@@ -159,6 +172,7 @@ docker-compose -f docker-compose.test.yml up -d --build
 ```
 
 ### AI 워크플로우가 인증 오류로 실패
+
 - **원인**: `.env`에 `ANTHROPIC_API_KEY`가 없거나 유효하지 않음
 - **해결**: `.env`에 실제 Anthropic API 키를 추가하고 재시작:
   ```bash
@@ -166,6 +180,7 @@ docker-compose -f docker-compose.test.yml up -d --build
   ```
 
 ### Redis 퇴출 정책 경고
+
 - **원인**: Redis 설정 문제 (최신 버전에서 수정됨)
 - **해결**: Redis 컨테이너 재빌드:
   ```bash
@@ -173,6 +188,7 @@ docker-compose -f docker-compose.test.yml up -d --build
   ```
 
 ### 데이터베이스 연결 오류
+
 ```bash
 # PostgreSQL이 준비되었는지 확인
 docker exec rtb-postgres pg_isready -U postgres
@@ -182,6 +198,7 @@ docker exec rtb-postgres psql -U postgres -d rtb_ai_hub -c "\dt"
 ```
 
 ### Webhook listener가 500 반환
+
 ```bash
 # webhook listener 로그 확인
 docker-compose -f docker-compose.test.yml logs webhook-listener
@@ -193,10 +210,13 @@ docker exec rtb-webhook-listener ping -c 3 redis
 ## 데이터베이스 스키마
 
 ### workflow_executions
+
 실행 이력 및 AI 사용량 저장:
+
 - `id`: 고유 실행 ID
 - `type`: 워크플로우 타입 (예: "figma-to-jira")
 - `status`: "pending", "running", "completed", "failed"
+- `env`: 환경 ("int", "stg", "prd") — 기본값 'int'
 - `ai_model`: 사용된 AI 모델 (예: "claude-opus")
 - `cost_usd`: USD로 추정된 비용
 - `tokens_input/output`: 토큰 사용량
@@ -206,9 +226,9 @@ docker exec rtb-webhook-listener ping -c 3 redis
 
 ```sql
 -- 최근 워크플로우 실행
-SELECT id, type, status, ai_model, cost_usd, duration 
-FROM workflow_executions 
-ORDER BY created_at DESC 
+SELECT id, type, status, env, ai_model, cost_usd, duration
+FROM workflow_executions
+ORDER BY created_at DESC
 LIMIT 10;
 
 -- 워크플로우 타입별 총 AI 비용
@@ -222,7 +242,70 @@ SELECT type, AVG(duration) as avg_ms, MAX(duration) as max_ms
 FROM workflow_executions
 WHERE status = 'completed'
 GROUP BY type;
+
+-- 환경별 워크플로우 실행 조회
+SELECT id, type, status, env FROM workflow_executions WHERE env = 'stg' ORDER BY created_at DESC;
 ```
+
+## 멀티 환경 설정
+
+RTB AI Hub는 단일 인프라에서 3개의 논리적 환경(int, stg, prd)을 지원합니다.
+
+### 환경 라우팅 동작
+
+1. **Webhook 수신**: 클라이언트가 `?env=stg` 쿼리 파라미터 또는 `X-Env: stg` 헤더로 환경 지정
+2. **큐 저장**: BullMQ 작업 데이터에 `env` 필드 포함
+3. **워크플로우 실행**: Workflow Engine이 환경별 MCP 서버 엔드포인트 호출 (SDK 직접 연결)
+4. **데이터베이스 기록**: `workflow_executions` 및 `webhook_events` 테이블에 `env` 컬럼 저장
+
+### 환경별 자격 증명 구성
+
+`.env` 파일에서 환경별 자격 증명을 설정할 수 있습니다:
+
+```bash
+# 기본 자격 증명 (모든 환경의 폴백)
+JIRA_HOST=your-org.atlassian.net
+JIRA_EMAIL=your-email@company.com
+JIRA_API_TOKEN=your-token
+
+# INT 환경 전용
+INT_JIRA_HOST=dev-org.atlassian.net
+INT_JIRA_EMAIL=dev@company.com
+INT_JIRA_API_TOKEN=dev-token
+
+# STG 환경 전용
+STG_JIRA_HOST=staging-org.atlassian.net
+STG_JIRA_EMAIL=staging@company.com
+STG_JIRA_API_TOKEN=staging-token
+
+# PRD 환경 전용
+PRD_JIRA_HOST=prod-org.atlassian.net
+PRD_JIRA_EMAIL=prod@company.com
+PRD_JIRA_API_TOKEN=prod-token
+```
+
+환경별 자격 증명이 없으면 기본 자격 증명(접두사 없음)으로 폴백됩니다.
+
+### 데이터베이스 마이그레이션
+
+`env` 컬럼은 Drizzle 마이그레이션으로 추가되었습니다:
+
+```sql
+-- drizzle/0001_add_env_column.sql
+ALTER TABLE workflow_executions ADD COLUMN env VARCHAR(10) NOT NULL DEFAULT 'int';
+ALTER TABLE webhook_events ADD COLUMN env VARCHAR(10) NOT NULL DEFAULT 'int';
+```
+
+### MCP 서버 연결
+
+MCP 서버는 공식/커뮤니티 MCP 서버를 `@modelcontextprotocol/sdk`로 직접 연결합니다 (Docker 컨테이너 불필요):
+
+- **GitHub**: `@modelcontextprotocol/server-github` (npx stdio)
+- **Jira**: `@aashari/mcp-server-atlassian-jira` (Streamable HTTP)
+- **Figma**: `mcp.figma.com/mcp` (Remote HTTP, OAuth)
+- **Datadog**: `@winor30/mcp-server-datadog` (npx stdio)
+
+환경별 자격 증명은 `NATIVE_MCP_ENDPOINTS` 및 환경변수 접두사(`INT_`, `STG_`, `PRD_`)로 구분됩니다.
 
 ## 개발 모드
 
@@ -249,6 +332,7 @@ npm run dev
 ```
 
 **참고**: PostgreSQL과 Redis가 로컬에서 실행 중이어야 합니다:
+
 ```bash
 docker-compose -f docker-compose.test.yml up -d postgres redis
 ```
@@ -256,6 +340,7 @@ docker-compose -f docker-compose.test.yml up -d postgres redis
 ## 모니터링 및 관찰 가능성
 
 ### 실시간 로그 확인
+
 ```bash
 # 모든 서비스
 docker-compose -f docker-compose.test.yml logs -f
@@ -268,6 +353,7 @@ docker-compose -f docker-compose.test.yml logs -f | grep ERROR
 ```
 
 ### 헬스 체크
+
 ```bash
 # Webhook listener
 curl http://localhost:4000/health
@@ -277,6 +363,7 @@ curl http://localhost:3001/health
 ```
 
 ### Redis 큐 모니터링
+
 ```bash
 docker exec rtb-redis redis-cli INFO keyspace
 docker exec rtb-redis redis-cli KEYS "bull:*"
@@ -285,6 +372,7 @@ docker exec rtb-redis redis-cli KEYS "bull:*"
 ## 프로덕션 배포
 
 프로덕션 환경에서는:
+
 1. `docker-compose.yml` 사용 (`docker-compose.test.yml`이 아님)
 2. `NODE_ENV=production` 설정
 3. API 키는 비밀 관리 도구 사용 (AWS Secrets Manager, Vault)
@@ -307,6 +395,7 @@ docker exec rtb-redis redis-cli KEYS "bull:*"
 ## 지원
 
 문제나 질문이 있는 경우:
+
 1. 로그 확인: `docker-compose -f docker-compose.test.yml logs`
 2. 이 설정 가이드 검토
 3. 아키텍처 세부사항은 주 README.md 확인

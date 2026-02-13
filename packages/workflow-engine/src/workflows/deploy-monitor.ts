@@ -1,18 +1,39 @@
-import { createLogger, generateId, WorkflowStatus, WorkflowType, AITier } from '@rtb-ai-hub/shared';
-import type { GitHubWebhookEvent, WorkflowExecution } from '@rtb-ai-hub/shared';
+import {
+  createLogger,
+  generateId,
+  WorkflowStatus,
+  WorkflowType,
+  AITier,
+  DEFAULT_ENVIRONMENT,
+} from '@rtb-ai-hub/shared';
+import type { GitHubWebhookEvent, WorkflowExecution, Environment } from '@rtb-ai-hub/shared';
 import { anthropicClient } from '../clients/anthropic';
 import { database } from '../clients/database';
+import { createDatadogMonitor } from '../clients/mcp-helper';
 
 const logger = createLogger('deploy-monitor-workflow');
 
+type MonitoringAnalysis = {
+  analysis: { summary: string; riskLevel: string; affectedServices: string[] };
+  risks: Array<{ description: string; severity: string; mitigation: string }>;
+  monitoringChecklist: Array<{
+    metric: string;
+    threshold: string;
+    duration: string;
+    action: string;
+  }>;
+  rollbackCriteria: Array<{ condition: string; threshold: string; autoRollback: boolean }>;
+};
+
 export async function processDeployMonitor(
   event: GitHubWebhookEvent,
-  userId: string | null
+  userId: string | null,
+  env: Environment = DEFAULT_ENVIRONMENT
 ): Promise<any> {
   const executionId = generateId('exec');
   const startedAt = new Date();
 
-  logger.info({ event, executionId, userId }, 'Starting deploy-monitor workflow');
+  logger.info({ event, executionId, userId, env }, 'Starting deploy-monitor workflow');
 
   const aiClient = anthropicClient;
 
@@ -22,6 +43,7 @@ export async function processDeployMonitor(
     status: WorkflowStatus.IN_PROGRESS,
     input: event,
     userId,
+    env,
     startedAt,
   };
 
@@ -85,7 +107,7 @@ Format your response as JSON:
 
     logger.info({ executionId, tokensUsed: aiResponse.tokensUsed }, 'AI analysis complete');
 
-    let monitoring;
+    let monitoring: MonitoringAnalysis;
     try {
       const jsonMatch = aiResponse.text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -123,6 +145,8 @@ Format your response as JSON:
       costUsd: cost,
     });
 
+    const mcpResults = await executeDatadogMonitorMcpCalls(env, event, monitoring);
+
     const completedAt = new Date();
     const duration = completedAt.getTime() - startedAt.getTime();
 
@@ -131,8 +155,9 @@ Format your response as JSON:
       type: WorkflowType.DEPLOY_MONITOR,
       status: WorkflowStatus.COMPLETED,
       input: event,
-      output: monitoring,
+      output: { monitoring, mcpResults },
       userId,
+      env,
       aiModel: aiResponse.model,
       tokensUsed: aiResponse.tokensUsed,
       costUsd: cost,
@@ -148,6 +173,7 @@ Format your response as JSON:
         executionId,
         riskLevel: monitoring.analysis.riskLevel,
         checklistCount: monitoring.monitoringChecklist.length,
+        monitorsCreated: mcpResults.monitorsCreated,
         cost,
       },
       'deploy-monitor workflow completed'
@@ -157,6 +183,7 @@ Format your response as JSON:
       success: true,
       executionId,
       monitoring,
+      mcpResults,
       cost,
       duration,
     };
@@ -172,6 +199,7 @@ Format your response as JSON:
       status: WorkflowStatus.FAILED,
       input: event,
       userId,
+      env,
       error: error instanceof Error ? error.message : String(error),
       startedAt,
       completedAt,
@@ -180,4 +208,54 @@ Format your response as JSON:
 
     throw error;
   }
+}
+
+async function executeDatadogMonitorMcpCalls(
+  env: Environment,
+  event: GitHubWebhookEvent,
+  monitoring: MonitoringAnalysis
+) {
+  if (monitoring.monitoringChecklist.length === 0) {
+    return { monitorsCreated: 0, monitorsAttempted: 0 };
+  }
+
+  let monitorsCreated = 0;
+  const monitorResults: Array<{ metric: string; created: boolean; error?: string }> = [];
+
+  for (const check of monitoring.monitoringChecklist) {
+    const result = await createDatadogMonitor(env, {
+      name: `[Deploy Monitor] ${event.repository} — ${check.metric}`,
+      type: 'metric alert',
+      query: `avg(last_5m):avg:${check.metric}{*} > ${check.threshold}`,
+      message: [
+        `Deploy monitor triggered for ${event.repository} (${event.branch})`,
+        `Threshold: ${check.threshold}`,
+        `Action: ${check.action}`,
+        `SHA: ${event.sha}`,
+      ].join('\n'),
+      tags: [
+        `repo:${event.repository}`,
+        `branch:${event.branch || 'unknown'}`,
+        `env:${env}`,
+        'source:rtb-ai-hub',
+      ],
+    });
+
+    if (result.success) {
+      monitorsCreated++;
+      monitorResults.push({ metric: check.metric, created: true });
+    } else {
+      monitorResults.push({ metric: check.metric, created: false, error: result.error });
+      logger.warn(
+        { metric: check.metric, error: result.error },
+        'Failed to create Datadog monitor via MCP'
+      );
+    }
+  }
+
+  return {
+    monitorsCreated,
+    monitorsAttempted: monitoring.monitoringChecklist.length,
+    monitorResults,
+  };
 }

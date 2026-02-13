@@ -5,7 +5,7 @@
 RTB AI Hub는 사용자별 자격증명 관리를 지원하는 완전한 인증 시스템을 제공합니다:
 
 - **Google Workspace OAuth 로그인**: 회사 계정으로 시스템 접근 제어
-- **사용자별 API 키 관리**: Anthropic, OpenAI 등의 API 키를 암호화하여 저장
+- **사용자별 API 키 관리**: Anthropic 등의 API 키를 암호화하여 저장
 - **서비스 OAuth 연동**: Jira, GitHub, Figma, Datadog와의 OAuth 2.0 통합
 - **세션 관리**: JWT 기반 안전한 세션 관리
 
@@ -91,18 +91,21 @@ REDIS_PORT=6379
 각 서비스에서 OAuth 앱을 생성하고 `.env`에 추가:
 
 **Jira Cloud:**
+
 ```bash
 JIRA_CLIENT_ID=your-jira-client-id
 JIRA_CLIENT_SECRET=your-jira-client-secret
 ```
 
 **GitHub:**
+
 ```bash
 GITHUB_CLIENT_ID=your-github-client-id
 GITHUB_CLIENT_SECRET=your-github-client-secret
 ```
 
 **Figma:**
+
 ```bash
 FIGMA_CLIENT_ID=your-figma-client-id
 FIGMA_CLIENT_SECRET=your-figma-client-secret
@@ -123,6 +126,7 @@ docker-compose -f docker-compose.test.yml ps
 ```
 
 예상 출력:
+
 ```
 NAME                   STATUS
 rtb-postgres           Up (healthy)
@@ -136,6 +140,7 @@ rtb-dashboard          Up
 ### 개별 서비스 시작 (개발 모드)
 
 **터미널 1 - Auth Service:**
+
 ```bash
 cd packages/auth-service
 npm install
@@ -144,6 +149,7 @@ npm run dev
 ```
 
 **터미널 2 - Webhook Listener:**
+
 ```bash
 cd packages/webhook-listener
 npm install
@@ -151,6 +157,7 @@ npm run dev
 ```
 
 **터미널 3 - Workflow Engine:**
+
 ```bash
 cd packages/workflow-engine
 npm install
@@ -168,6 +175,7 @@ curl http://localhost:4001/auth/google/login
 ```
 
 응답:
+
 ```json
 {
   "authUrl": "https://accounts.google.com/o/oauth2/v2/auth?..."
@@ -177,6 +185,7 @@ curl http://localhost:4001/auth/google/login
 브라우저에서 `authUrl`을 열어 Google 로그인을 진행합니다.
 
 **로그인 완료 후:**
+
 - 자동으로 Dashboard로 리디렉션됨 (`http://localhost:3000/dashboard?login=success`)
 - `session_token`과 `refresh_token` 쿠키가 설정됨
 
@@ -194,18 +203,6 @@ curl -X POST http://localhost:4001/credentials/api-key \
   }'
 ```
 
-**OpenAI API 키 저장:**
-
-```bash
-curl -X POST http://localhost:4001/credentials/api-key \
-  -H "Authorization: Bearer <session_token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "service": "openai",
-    "apiKey": "sk-your-openai-key"
-  }'
-```
-
 ### 3. OAuth 서비스 연결
 
 **Jira 연결:**
@@ -216,6 +213,7 @@ curl http://localhost:4001/oauth/jira/connect \
 ```
 
 응답:
+
 ```json
 {
   "authUrl": "https://auth.atlassian.com/authorize?..."
@@ -242,6 +240,7 @@ curl http://localhost:4001/credentials \
 ```
 
 응답:
+
 ```json
 {
   "credentials": [
@@ -279,6 +278,7 @@ curl -X POST http://localhost:4000/webhooks/figma \
 ```
 
 **동작 방식:**
+
 1. Webhook Listener가 Bearer 토큰을 검증
 2. 사용자 ID를 추출하여 큐에 포함
 3. Workflow Engine이 사용자별 Anthropic API 키를 사용하여 AI 처리
@@ -404,6 +404,7 @@ docker exec rtb-postgres psql -U postgres -d rtb_ai_hub \
 **증상**: Google 로그인 후 에러
 
 **해결**:
+
 1. `GOOGLE_CLIENT_ID`와 `GOOGLE_CLIENT_SECRET` 확인
 2. Google Cloud Console에서 리디렉션 URI 확인
 3. `ALLOWED_WORKSPACE_DOMAINS`에 도메인이 포함되어 있는지 확인
@@ -413,6 +414,7 @@ docker exec rtb-postgres psql -U postgres -d rtb_ai_hub \
 **증상**: `CREDENTIAL_ENCRYPTION_KEY` 에러
 
 **해결**:
+
 ```bash
 # 새 암호화 키 생성
 node scripts/generate-secrets.js
@@ -426,6 +428,7 @@ docker-compose -f docker-compose.test.yml restart auth-service
 **증상**: 기본 API 키 사용됨
 
 **해결**:
+
 1. 웹훅 요청에 Bearer 토큰 포함 확인
 2. Workflow Engine 로그 확인:
    ```bash

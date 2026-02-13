@@ -1,0 +1,346 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run daily at 2 AM
+    - cron: '0 2 * * *'
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '8'
+
+jobs:
+  validate:
+    name: Validate Integration
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: rtb_ai_hub_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build shared package
+        run: pnpm build:shared
+
+      - name: Run validation script
+        run: ./scripts/validate-integration.sh
+        env:
+          OPENCLAW_GATEWAY_URL: http://localhost:3000
+          OPENCLAW_HOOKS_TOKEN: test-token
+          ANTHROPIC_API_KEY: test-key
+
+  test-gateway:
+    name: Gateway Tests
+    runs-on: ubuntu-latest
+    needs: validate
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Start services
+        run: docker-compose up -d postgres redis
+
+      - name: Wait for services
+        run: |
+          ./scripts/wait-for-services.sh
+
+      - name: Run Gateway tests
+        run: pnpm test:integration -- --testNamePattern="Gateway"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gateway-test-results
+          path: test-results/
+
+  test-agents:
+    name: Agent Routing Tests
+    runs-on: ubuntu-latest
+    needs: validate
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Start services
+        run: docker-compose up -d
+
+      - name: Wait for services
+        run: |
+          ./scripts/wait-for-services.sh
+
+      - name: Run Agent tests
+        run: pnpm test:integration -- --testNamePattern="Agent"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agent-test-results
+          path: test-results/
+
+  test-bidirectional:
+    name: Bidirectional Communication Tests
+    runs-on: ubuntu-latest
+    needs: validate
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Start services
+        run: docker-compose up -d
+
+      - name: Wait for services
+        run: |
+          ./scripts/wait-for-services.sh
+
+      - name: Run Bidirectional tests
+        run: pnpm test:integration -- --testNamePattern="Bidirectional"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bidirectional-test-results
+          path: test-results/
+
+  test-scenarios:
+    name: E2E Scenario Tests
+    runs-on: ubuntu-latest
+    needs: [test-gateway, test-agents, test-bidirectional]
+    if: github.event_name == 'schedule' || github.ref == 'refs/heads/main'
+
+    strategy:
+      matrix:
+        scenario: [1, 2, 3]
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Start services
+        run: docker-compose up -d
+
+      - name: Wait for services
+        run: |
+          ./scripts/wait-for-services.sh
+
+      - name: Run Scenario ${{ matrix.scenario }}
+        run: ./scripts/test-e2e.sh --scenario=${{ matrix.scenario }}
+        timeout-minutes: 30
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scenario-${{ matrix.scenario }}-results
+          path: test-results/
+
+  report:
+    name: Generate Test Report
+    runs-on: ubuntu-latest
+    needs: [test-gateway, test-agents, test-bidirectional, test-scenarios]
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: test-results/
+          merge-multiple: true
+
+      - name: Generate report
+        run: node scripts/test-result-collector.js
+
+      - name: Upload combined report
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: |
+            test-results/test-report.html
+            test-results/test-report.md
+            test-results/test-results.json
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const results = JSON.parse(fs.readFileSync('test-results/test-results.json', 'utf8'));
+
+            const { summary } = results;
+            const successRate = Math.round((summary.passed / summary.total) * 100);
+
+            const body = `## Integration Test Results
+
+            | Metric | Count |
+            |--------|-------|
+            | Total | ${summary.total} |
+            | Passed | ${summary.passed} ✅ |
+            | Failed | ${summary.failed} ❌ |
+            | Skipped | ${summary.skipped} ⏭️ |
+
+            **Success Rate:** ${successRate}%
+
+            [View detailed report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+  notify:
+    name: Notify Slack
+    runs-on: ubuntu-latest
+    needs: report
+    if: always() && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Notify Slack
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Integration Tests Completed",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "Integration Test Results"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:*\n${{ github.ref }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Status:*\n${{ needs.report.result }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Report"
+                      },
+                      "url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

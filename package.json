@@ -13,6 +13,10 @@
     "build:webhook": "pnpm --filter @rtb-ai-hub/webhook-listener run build",
     "build:workflow": "pnpm --filter @rtb-ai-hub/workflow-engine run build",
     "build:dashboard": "pnpm --filter @rtb-ai-hub/dashboard run build",
+    "dev": "pnpm dev:infra && pnpm dev:init-repos && pnpm build:shared && dotenv -e .env.base -e .env.auth -e .env.services -e .env.ai -e .env.advanced -e .env.local -- concurrently -k -p \"[{name}]\" -n auth,webhook,workflow,dashboard -c blue,green,yellow,magenta \"pnpm dev:auth\" \"pnpm dev:webhook\" \"pnpm dev:workflow\" \"pnpm dev:dashboard\"; pnpm dev:infra:stop",
+    "dev:infra": "docker compose -f docker-compose.test.yml up -d postgres redis && echo 'Waiting for DB...' && sleep 3",
+    "dev:infra:stop": "docker compose -f docker-compose.test.yml stop postgres redis && echo 'Infrastructure stopped.'",
+    "dev:init-repos": "dotenv -e .env.base -e .env.auth -e .env.services -e .env.ai -e .env.advanced -e .env.local -- node scripts/init-repos.js",
     "dev:auth": "pnpm --filter @rtb-ai-hub/auth-service run dev",
     "dev:webhook": "pnpm --filter @rtb-ai-hub/webhook-listener run dev",
     "dev:workflow": "pnpm --filter @rtb-ai-hub/workflow-engine run dev",
@@ -27,22 +31,39 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
     "format": "prettier --write \"packages/*/src/**/*.{ts,tsx,json}\"",
     "format:check": "prettier --check \"packages/*/src/**/*.{ts,tsx,json}\"",
     "typecheck": "pnpm -r run typecheck",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "hub:ci": "bash scripts/ci-local.sh",
+    "hub:ci:quick": "bash scripts/ci-local.sh --quick",
+    "hub:ci:fix": "bash scripts/ci-local.sh --fix",
+    "hub:deploy": "bash scripts/deploy-local.sh",
+    "hub:deploy:dry": "bash scripts/deploy-local.sh --dry-run"
   },
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=8.0.0"
   },
   "packageManager": "pnpm@10.28.2",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "msgpackr-extract"
+    ]
+  },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@playwright/test": "^1.58.2",
     "@vitest/coverage-v8": "^4.0.18",
+    "concurrently": "^9.2.1",
+    "dotenv-cli": "^11.0.0",
     "drizzle-kit": "^0.31.8",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",

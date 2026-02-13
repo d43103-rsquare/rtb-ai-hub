@@ -1,0 +1,155 @@
+# OpenClaw Agent Manifest
+# RTB AI Hub — 5-Agent Orchestration Architecture
+#
+# Hub = 인프라 + 지식 + 데이터 (도구)
+# OpenClaw = 에이전트 + 커뮤니케이션 + 스케줄링 (사람)
+
+agents:
+  pm-agent:
+    enabled: true
+    name: 'PM Agent'
+    codename: 'VisionKeeper'
+    identity_file: 'identities/pm-agent.md'
+    model: 'claude-sonnet-4-20250514'
+    role: coordinator
+    priority: 1
+
+  teamlead-agent:
+    enabled: true
+    name: 'Team Lead Agent'
+    codename: 'TechDirector'
+    identity_file: 'identities/teamlead-agent.md'
+    model: 'claude-sonnet-4-20250514'
+    role: gatekeeper
+    priority: 2
+
+  developer-agent:
+    enabled: true
+    name: 'Developer Agent'
+    codename: 'CodeCraftsman'
+    identity_file: 'identities/developer-agent.md'
+    model: 'claude-sonnet-4-20250514'
+    role: developer
+    priority: 3
+
+  ops-agent:
+    enabled: true
+    name: 'Ops Agent'
+    codename: 'InfraKeeper'
+    identity_file: 'identities/ops-agent.md'
+    model: 'claude-sonnet-4-20250514'
+    role: ops
+    priority: 4
+
+  test-agent:
+    enabled: true
+    name: 'Test Agent'
+    codename: 'QualityGuard'
+    identity_file: 'identities/test-agent.md'
+    model: 'claude-sonnet-4-20250514'
+    role: tester
+    priority: 5
+
+collaboration:
+  mode: orchestrated
+  coordinator: pm-agent
+  timeout_seconds: 7200
+  max_concurrent_agents: 5
+
+  rules:
+    - PM Agent가 모든 워크플로우의 진입점이자 코디네이터
+    - Team Lead Agent가 4개 게이트 포인트에서 승인/반려 결정
+    - 에이전트 간 요청 시 명확한 deliverables 정의 필수
+    - 모든 기술적 결정은 Team Lead의 승인 필요
+    - 사용자(Slack) 피드백 루프는 PM Agent를 통해 수행
+
+# 에이전트 간 통신 흐름
+# ① Slack → PM Agent (요구사항 수신)
+# ② PM Agent → Hub Knowledge API (도메인 지식 조회)
+# ③ PM Agent → Developer Agent (정제된 요구사항 전달)
+# ④ Developer Agent ↔ PM Agent (확인 대화)
+# ⑤ Developer Agent → Team Lead Agent (개발 계획 제출 — G1 게이트)
+# ⑥ Team Lead Agent → Developer Agent (승인 or 반려+수정방향)
+# ⑦ Developer Agent → Hub Infra API (브랜치/코드/CI/PR)
+# ⑧ Developer Agent → Team Lead Agent (개발 완료 보고 — G2 게이트)
+# ⑨ Team Lead Agent → Ops Agent (배포 요청)
+# ⑩ Ops Agent → Hub Infra API (프리뷰 환경 배포)
+# ⑪ Ops Agent → Test Agent (서버 준비 알림)
+# ⑫ Test Agent → Team Lead Agent (테스트 계획 제출 — G3 게이트)
+# ⑬ Team Lead Agent → Test Agent (승인 or 반려)
+# ⑭ Test Agent → (테스트 실행)
+# ⑮ Test Agent → Team Lead Agent (테스트 결과 — G4 게이트)
+# ⑯ Team Lead → Slack 사용자 (완료 알림)
+
+handoff_matrix:
+  pm-agent:
+    to:
+      - developer-agent
+      - teamlead-agent
+
+  teamlead-agent:
+    to:
+      - developer-agent
+      - ops-agent
+      - test-agent
+      - pm-agent
+
+  developer-agent:
+    to:
+      - pm-agent
+      - teamlead-agent
+
+  ops-agent:
+    to:
+      - test-agent
+      - teamlead-agent
+
+  test-agent:
+    to:
+      - teamlead-agent
+
+# 게이트 포인트 정의
+gates:
+  G1-dev-plan:
+    description: '개발 계획 승인'
+    gatekeeper: teamlead-agent
+    input_from: developer-agent
+    on_approve: developer-agent가 개발 시작
+    on_reject: developer-agent가 계획 재작성
+
+  G2-dev-complete:
+    description: '개발 완료 확인'
+    gatekeeper: teamlead-agent
+    input_from: developer-agent
+    on_approve: ops-agent에 배포 요청
+    on_reject: developer-agent가 수정
+
+  G3-test-plan:
+    description: '테스트 계획 승인'
+    gatekeeper: teamlead-agent
+    input_from: test-agent
+    on_approve: test-agent가 테스트 시작
+    on_reject: test-agent가 계획 재작성
+
+  G4-test-result:
+    description: '테스트 결과 판정'
+    gatekeeper: teamlead-agent
+    input_from: test-agent
+    on_approve: 사용자에게 완료 알림
+    on_reject: developer-agent에 수정 요청 후 재테스트
+
+scenarios:
+  feature_development:
+    description: '기능 개발 (전체 플로우)'
+    agents: [pm-agent, teamlead-agent, developer-agent, ops-agent, test-agent]
+    estimated_time: '60 minutes'
+
+  hotfix:
+    description: '긴급 수정 (게이트 간소화)'
+    agents: [pm-agent, developer-agent, teamlead-agent, ops-agent]
+    estimated_time: '20 minutes'
+
+  investigation:
+    description: '기술 조사/분석 (개발 없음)'
+    agents: [pm-agent, developer-agent, teamlead-agent]
+    estimated_time: '15 minutes'

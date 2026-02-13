@@ -9,6 +9,9 @@ info:
     - **Webhook Listener** (port 4000): Receives webhook events from Figma, Jira, GitHub, and Datadog, validates payloads via Zod schemas, and queues them for async processing via BullMQ.
     - **Auth Service** (port 4001): Handles Google Workspace OAuth login, session management, and encrypted credential storage (AES-256-GCM) for per-user API keys.
 
+    ### Multi-Environment Support
+    All webhook endpoints support environment routing via `?env=int|stg|prd` query parameter or `X-Env` header. Events are processed by environment-specific MCP server containers with separate credentials. Default environment is `int`.
+
     ### Authentication Flow
     - Webhook endpoints accept **optional** Bearer tokens for user attribution.
     - Auth service endpoints use **session cookies** (HttpOnly) set after Google OAuth login, or **Bearer JWT tokens** in the Authorization header.
@@ -78,6 +81,8 @@ paths:
       parameters:
         - $ref: '#/components/parameters/FigmaSignature'
         - $ref: '#/components/parameters/OptionalAuthorization'
+        - $ref: '#/components/parameters/EnvQuery'
+        - $ref: '#/components/parameters/XEnvHeader'
       requestBody:
         required: true
         content:
@@ -112,6 +117,8 @@ paths:
       parameters:
         - $ref: '#/components/parameters/JiraSignature'
         - $ref: '#/components/parameters/OptionalAuthorization'
+        - $ref: '#/components/parameters/EnvQuery'
+        - $ref: '#/components/parameters/XEnvHeader'
       requestBody:
         required: true
         content:
@@ -147,6 +154,8 @@ paths:
         - $ref: '#/components/parameters/GitHubSignature'
         - $ref: '#/components/parameters/GitHubEvent'
         - $ref: '#/components/parameters/OptionalAuthorization'
+        - $ref: '#/components/parameters/EnvQuery'
+        - $ref: '#/components/parameters/XEnvHeader'
       requestBody:
         required: true
         content:
@@ -181,6 +190,8 @@ paths:
       parameters:
         - $ref: '#/components/parameters/DatadogSignature'
         - $ref: '#/components/parameters/OptionalAuthorization'
+        - $ref: '#/components/parameters/EnvQuery'
+        - $ref: '#/components/parameters/XEnvHeader'
       requestBody:
         required: true
         content:
@@ -643,6 +654,25 @@ components:
         type: string
         pattern: '^Bearer .+$'
         example: 'Bearer eyJhbGciOiJIUzI1NiIs...'
+    EnvQuery:
+      name: env
+      in: query
+      required: false
+      description: 'Target environment for the webhook event. Determines which MCP server containers process the event. Defaults to "int" if not specified.'
+      schema:
+        type: string
+        enum: [int, stg, prd]
+        default: int
+        example: stg
+    XEnvHeader:
+      name: X-Env
+      in: header
+      required: false
+      description: 'Alternative way to specify target environment (same as ?env= query parameter). Query parameter takes precedence if both are provided.'
+      schema:
+        type: string
+        enum: [int, stg, prd]
+        example: stg
 
   schemas:
     # ── Health ──────────────────────────────────
@@ -851,6 +881,11 @@ components:
           type: string
           description: Identifier for the queued event (file_key, issue key, SHA, or alert ID depending on source)
           example: abc123
+        env:
+          type: string
+          enum: [int, stg, prd]
+          description: Target environment for this event
+          example: int
 
     # ── Auth Service Schemas ────────────────────
     UserProfile:

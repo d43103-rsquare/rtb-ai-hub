@@ -42,6 +42,7 @@ export class Database {
           output: execution.output || null,
           error: execution.error || null,
           userId: execution.userId || null,
+          env: execution.env || 'int',
           aiModel: execution.aiModel || null,
           tokensInput: execution.tokensUsed?.input || null,
           tokensOutput: execution.tokensUsed?.output || null,

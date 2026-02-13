@@ -1,7 +1,7 @@
 # RTB AI Hub — Development Roadmap & TODO
 
 > **Last Updated**: 2026-02-08
-> **Current Score**: ~8.0/10 (from 3.7/10 prototype)
+> **Current Score**: ~8.5/10 (from 3.7/10 prototype)
 > **Goal**: Production-ready autonomous dev team hub (8+/10)
 
 ---
@@ -79,23 +79,41 @@
 | P6-7 | Jira user resolver                          | `20bb45a` | 이메일 기반 Jira 사용자 매핑 유틸리티                           |
 | P6-8 | Clean up init.sql + docker-compose          | `—`       | credential 테이블/환경변수 제거                                 |
 
+## ✅ Completed (P7 — Multi-Environment Support)
+
+| #    | Item                          | Notes                                                                        |
+| ---- | ----------------------------- | ---------------------------------------------------------------------------- |
+| P7-1 | Environment types & constants | `ENVIRONMENTS`, `Environment`, `DEFAULT_ENVIRONMENT`, `MCP_ENDPOINTS_BY_ENV` |
+| P7-2 | Webhook env routing           | `?env=` query param, `X-Env` header, all 4 routes                            |
+| P7-3 | BullMQ env propagation        | `env` in job data, worker extraction, workflow param                         |
+| P7-4 | DB env column                 | `env VARCHAR(10)` added to `workflow_executions` & `webhook_events`          |
+| P7-5 | Drizzle migration             | `0001_add_env_column.sql` + journal entry                                    |
+| P7-6 | MCP client factory            | `getMcpClient(service, env)` with env-specific endpoints                     |
+| P7-7 | Docker MCP containers         | 8 env-specific containers (4 services × int/stg)                             |
+| P7-8 | Per-env credentials           | `INT_*`, `STG_*` env vars with base fallback                                 |
+| P7-9 | Test coverage                 | 140 tests passing (build + lint + test)                                      |
+
 ---
 
-## 🔮 Future Considerations (P7+)
+## 🔮 Future Considerations (P8+)
 
-| #     | Item                         | Priority | Notes                                                       |
-| ----- | ---------------------------- | -------- | ----------------------------------------------------------- |
-| P7-1  | Google OAuth production      | MEDIUM   | DEV_MODE 해제 후 실제 Google OAuth 연동                     |
-| P7-2  | E2E testing (Playwright)     | LOW      | Full workflow testing through UI                            |
-| P7-3  | Kubernetes manifests         | LOW      | Helm charts or kustomize for production                     |
-| P7-4  | Observability stack          | LOW      | Structured logging → ELK/Loki, metrics → Prometheus/Grafana |
-| P7-5  | Multi-tenant support         | LOW      | Org-level isolation, RBAC                                   |
-| P7-6  | Plugin architecture          | LOW      | Custom workflow steps, third-party integrations             |
-| P7-7  | Dashboard improvements       | LOW      | Real-time workflow monitoring, cost tracking charts         |
-| P7-8  | Webhook retry/DLQ            | LOW      | Dead letter queue for failed webhook processing             |
-| P7-9  | Database migrations CI       | LOW      | Automated migration check in CI pipeline                    |
-| P7-10 | MCP server integration tests | LOW      | Docker-based integration tests for MCP servers              |
-| P7-11 | MCP tool-use in workflows    | LOW      | Connect workflows to MCP servers for actual API calls       |
+| #     | Item                           | Priority | Notes                                                       |
+| ----- | ------------------------------ | -------- | ----------------------------------------------------------- |
+| P8-1  | Google OAuth production        | MEDIUM   | DEV_MODE 해제 후 실제 Google OAuth 연동                     |
+| P8-2  | E2E testing (Playwright)       | LOW      | Full workflow testing through UI                            |
+| P8-3  | Kubernetes manifests           | LOW      | Helm charts or kustomize for production                     |
+| P8-4  | Observability stack            | LOW      | Structured logging → ELK/Loki, metrics → Prometheus/Grafana |
+| P8-5  | Multi-tenant support           | LOW      | Org-level isolation, RBAC                                   |
+| P8-6  | Plugin architecture            | LOW      | Custom workflow steps, third-party integrations             |
+| P8-7  | Dashboard improvements         | LOW      | Real-time workflow monitoring, cost tracking charts         |
+| P8-8  | Webhook retry/DLQ              | LOW      | Dead letter queue for failed webhook processing             |
+| P8-9  | Database migrations CI         | LOW      | Automated migration check in CI pipeline                    |
+| P8-10 | MCP server integration tests   | LOW      | Docker-based integration tests for MCP servers              |
+| P8-11 | MCP tool-use in workflows      | LOW      | Connect workflows to MCP servers for actual API calls       |
+| P8-12 | Dashboard env filter           | LOW      | Env dropdown/filter on dashboard to view by environment     |
+| P8-13 | docker-compose.test.yml update | LOW      | Add env-specific MCP containers to test compose file        |
+| P8-14 | getMcpClient wiring            | MEDIUM   | Connect workflows to getMcpClient() for actual MCP calls    |
+| P8-15 | Env-specific webhook tests     | LOW      | Test ?env=stg query param behavior                          |
 
 ---
 
@@ -110,8 +128,9 @@
 | P4 — Workflows           | 4      | 4      | 0         |
 | P5 — DB Maturity         | 2      | 2      | 0         |
 | P6 — Auth Simplification | 8      | 8      | 0         |
-| P7 — Future              | 11     | 0      | 11        |
-| **Total**                | **43** | **32** | **11**    |
+| P7 — Multi-Environment   | 9      | 9      | 0         |
+| P8 — Future              | 15     | 0      | 15        |
+| **Total**                | **56** | **41** | **15**    |
 
 ---
 
@@ -153,8 +172,8 @@ pnpm docker:logs        # View logs
 | `DEV_USER_EMAIL`    | Fixed dev user email                       | Yes (if DEV_MODE=true) |
 | `DEV_USER_NAME`     | Fixed dev user display name                | Yes (if DEV_MODE=true) |
 | `ANTHROPIC_API_KEY` | Anthropic API key (shared, single account) | Yes (for AI workflows) |
-| `OPENAI_API_KEY`    | OpenAI API key (shared, single account)    | No                     |
-| `JWT_SECRET`        | JWT signing secret (min 32 chars)          | Yes                    |
+
+| `JWT_SECRET` | JWT signing secret (min 32 chars) | Yes |
 
 ### AI Models (P1)
 
@@ -163,7 +182,6 @@ pnpm docker:logs        # View logs
 | `AI_MODEL_HEAVY`         | Heavy AI model (default: claude-sonnet-4-20250514)  | No                  |
 | `AI_MODEL_MEDIUM`        | Medium AI model (default: claude-sonnet-4-20250514) | No                  |
 | `AI_MODEL_LIGHT`         | Light AI model (default: claude-haiku-4-20250414)   | No                  |
-| `OPENAI_MODEL`           | OpenAI model (default: gpt-4o)                      | No                  |
 | `GITHUB_WEBHOOK_SECRET`  | GitHub webhook HMAC secret                          | No (skips if unset) |
 | `JIRA_WEBHOOK_SECRET`    | Jira webhook HMAC secret                            | No (skips if unset) |
 | `FIGMA_WEBHOOK_SECRET`   | Figma webhook HMAC secret                           | No (skips if unset) |

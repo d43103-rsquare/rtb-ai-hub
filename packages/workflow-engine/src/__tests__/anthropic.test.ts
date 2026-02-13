@@ -110,10 +110,10 @@ describe('AnthropicClient', () => {
       );
     });
 
-    it('returns haiku-4 for LIGHT tier', async () => {
+    it('returns sonnet-4.5 for LIGHT tier', async () => {
       mockCreate.mockResolvedValue({
         content: [{ type: 'text', text: 'response' }],
-        model: 'claude-haiku-4-20250414',
+        model: 'claude-sonnet-4-5-20250514',
         usage: { input_tokens: 10, output_tokens: 20 },
         stop_reason: 'end_turn',
       });
@@ -122,7 +122,7 @@ describe('AnthropicClient', () => {
       await client.generateText('test', { tier: AITier.LIGHT });
 
       expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ model: 'claude-haiku-4-20250414' })
+        expect.objectContaining({ model: 'claude-sonnet-4-5-20250514' })
       );
     });
   });

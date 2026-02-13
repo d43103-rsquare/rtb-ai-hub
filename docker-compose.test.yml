@@ -100,6 +100,7 @@ services:
       REDIS_PORT: 6379
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENCODE_API_URL: ${OPENCODE_API_URL:-http://opencode:3333}
     depends_on:
       postgres:
         condition: service_healthy
@@ -176,6 +177,92 @@ services:
       retries: 3
       start_period: 10s
 
+  openclaw-gateway:
+    build:
+      context: ./infrastructure/openclaw
+      dockerfile: Dockerfile
+    container_name: rtb-openclaw-gateway
+    volumes:
+      - ./infrastructure/openclaw/skills:/home/node/.openclaw/workspace/skills:ro
+      - openclaw-state:/home/node/.openclaw
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+      SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:-}
+      OPENCLAW_HOOKS_ENABLED: 'true'
+      OPENCLAW_HOOKS_TOKEN: ${OPENCLAW_HOOKS_TOKEN:-}
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_HOOKS_TOKEN:-}
+      RTB_API_URL: http://host.docker.internal:4000
+      RTB_API_TOKEN: ${OPENCLAW_HOOKS_TOKEN:-}
+      DASHBOARD_URL: ${DASHBOARD_URL:-http://localhost:3000}
+      NODE_TLS_REJECT_UNAUTHORIZED: '0'
+      ATLASSIAN_SITE_NAME: ${ATLASSIAN_SITE_NAME:-rsquare}
+      ATLASSIAN_USER_EMAIL: ${JIRA_EMAIL:-}
+      ATLASSIAN_API_TOKEN: ${JIRA_API_TOKEN:-}
+    ports:
+      - '${OPENCLAW_PORT:-18789}:18789'
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - rtb-network
+    healthcheck:
+      test: ['CMD', 'curl', '-sf', 'http://localhost:18789/']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles:
+      - openclaw
+
+  opencode-cli:
+    image: ghcr.io/opencode-ai/opencode:latest
+    container_name: rtb-opencode-cli
+    volumes:
+      - ./infrastructure/opencode:/root/.config/opencode:ro
+      - opencode-data:/root/.opencode/data
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - '4096:4096'
+    networks:
+      - rtb-network
+    command: ['opencode', 'serve', '--port', '4096', '--host', '0.0.0.0']
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:4096/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    profiles:
+      - opencode
+
+  opencode-server:
+    build:
+      context: ./services/opencode-server
+      dockerfile: Dockerfile
+    container_name: rtb-opencode-server
+    environment:
+      PORT: 3333
+      NODE_ENV: ${NODE_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      OPENCODE_CLI_URL: http://opencode-cli:4096
+    ports:
+      - '3333:3333'
+    depends_on:
+      opencode-cli:
+        condition: service_healthy
+    networks:
+      - rtb-network
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:3333/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    profiles:
+      - opencode
+
 networks:
   rtb-network:
     driver: bridge
@@ -184,3 +271,5 @@ volumes:
   postgres-data:
   redis-data:
   pnpm-cache:
+  openclaw-state:
+  opencode-data:

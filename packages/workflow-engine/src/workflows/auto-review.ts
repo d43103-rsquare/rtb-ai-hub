@@ -1,18 +1,43 @@
-import { createLogger, generateId, WorkflowStatus, WorkflowType, AITier } from '@rtb-ai-hub/shared';
-import type { GitHubWebhookEvent, WorkflowExecution } from '@rtb-ai-hub/shared';
+import {
+  createLogger,
+  generateId,
+  WorkflowStatus,
+  WorkflowType,
+  AITier,
+  DEFAULT_ENVIRONMENT,
+} from '@rtb-ai-hub/shared';
+import type { GitHubWebhookEvent, WorkflowExecution, Environment } from '@rtb-ai-hub/shared';
 import { anthropicClient } from '../clients/anthropic';
 import { database } from '../clients/database';
+import {
+  createGitHubReview,
+  createGitHubReviewComment,
+  getGitHubRepo,
+} from '../clients/mcp-helper';
 
 const logger = createLogger('auto-review-workflow');
 
+type ReviewAnalysis = {
+  summary: string;
+  approved: boolean;
+  comments: Array<{
+    file: string;
+    line: number;
+    comment: string;
+    severity: 'critical' | 'warning' | 'suggestion';
+  }>;
+  suggestions: string[];
+};
+
 export async function processAutoReview(
   event: GitHubWebhookEvent,
-  userId: string | null
+  userId: string | null,
+  env: Environment = DEFAULT_ENVIRONMENT
 ): Promise<any> {
   const executionId = generateId('exec');
   const startedAt = new Date();
 
-  logger.info({ event, executionId, userId }, 'Starting auto-review workflow');
+  logger.info({ event, executionId, userId, env }, 'Starting auto-review workflow');
 
   const aiClient = anthropicClient;
 
@@ -22,6 +47,7 @@ export async function processAutoReview(
     status: WorkflowStatus.IN_PROGRESS,
     input: event,
     userId,
+    env,
     startedAt,
   };
 
@@ -66,7 +92,7 @@ Format your response as JSON:
 
     logger.info({ executionId, tokensUsed: aiResponse.tokensUsed }, 'AI analysis complete');
 
-    let review;
+    let review: ReviewAnalysis;
     try {
       const jsonMatch = aiResponse.text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -104,6 +130,8 @@ Format your response as JSON:
       costUsd: cost,
     });
 
+    const mcpResults = await executeGitHubReviewMcpCalls(env, event, review);
+
     const completedAt = new Date();
     const duration = completedAt.getTime() - startedAt.getTime();
 
@@ -112,8 +140,9 @@ Format your response as JSON:
       type: WorkflowType.AUTO_REVIEW,
       status: WorkflowStatus.COMPLETED,
       input: event,
-      output: review,
+      output: { review, mcpResults },
       userId,
+      env,
       aiModel: aiResponse.model,
       tokensUsed: aiResponse.tokensUsed,
       costUsd: cost,
@@ -129,6 +158,7 @@ Format your response as JSON:
         executionId,
         approved: review.approved,
         commentCount: review.comments.length,
+        reviewPosted: mcpResults.reviewPosted,
         cost,
       },
       'auto-review workflow completed'
@@ -138,6 +168,7 @@ Format your response as JSON:
       success: true,
       executionId,
       review,
+      mcpResults,
       cost,
       duration,
     };
@@ -153,6 +184,7 @@ Format your response as JSON:
       status: WorkflowStatus.FAILED,
       input: event,
       userId,
+      env,
       error: error instanceof Error ? error.message : String(error),
       startedAt,
       completedAt,
@@ -161,4 +193,66 @@ Format your response as JSON:
 
     throw error;
   }
+}
+
+async function executeGitHubReviewMcpCalls(
+  env: Environment,
+  event: GitHubWebhookEvent,
+  review: ReviewAnalysis
+) {
+  const { owner, repo } = getGitHubRepo(env);
+  const prNumber = event.prNumber;
+
+  if (!owner || !repo || !prNumber) {
+    logger.warn(
+      { owner, repo, prNumber, env },
+      'GitHub repo or PR number not available — skipping MCP review calls'
+    );
+    return { reviewPosted: false, commentsPosted: 0, error: 'Missing repo or PR info' };
+  }
+
+  let commentsPosted = 0;
+
+  for (const comment of review.comments) {
+    const result = await createGitHubReviewComment(env, {
+      owner,
+      repo,
+      pullNumber: prNumber,
+      body: `[${comment.severity.toUpperCase()}] ${comment.comment}`,
+      path: comment.file,
+      line: comment.line,
+    });
+
+    if (result.success) {
+      commentsPosted++;
+    } else {
+      logger.warn(
+        { file: comment.file, line: comment.line, error: result.error },
+        'Failed to post inline review comment via MCP'
+      );
+    }
+  }
+
+  const reviewEvent = review.approved ? 'APPROVE' : 'REQUEST_CHANGES';
+  const reviewBody = [
+    `## AI Code Review\n\n${review.summary}`,
+    review.suggestions.length > 0
+      ? `\n### Suggestions\n${review.suggestions.map((s) => `- ${s}`).join('\n')}`
+      : '',
+  ].join('');
+
+  const reviewResult = await createGitHubReview(env, {
+    owner,
+    repo,
+    pullNumber: prNumber,
+    event: reviewEvent as 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT',
+    body: reviewBody,
+  });
+
+  return {
+    reviewPosted: reviewResult.success,
+    reviewError: reviewResult.success ? null : reviewResult.error,
+    commentsPosted,
+    commentsFailed: review.comments.length - commentsPosted,
+  };
 }
