@@ -7,7 +7,7 @@ import { createGitHubRouter } from './github';
 import { createDatadogRouter } from './datadog';
 import { createChatRouter } from './chat';
 import { createContextRouter } from './context';
-import { createOpenClawRouter } from './openclaw';
+
 import { createKnowledgeRouter } from './knowledge';
 import { createInfraRouter } from './infra';
 import { createWorkflowsRouter } from './workflows';
@@ -28,7 +28,7 @@ export function createRoutes(queues: {
   router.use(createDatadogRouter(queues.datadogQueue));
   router.use(createChatRouter(queues.redis));
   router.use(createContextRouter());
-  router.use(createOpenClawRouter());
+
   router.use(createKnowledgeRouter());
   router.use(createInfraRouter());
   router.use(createWorkflowsRouter());

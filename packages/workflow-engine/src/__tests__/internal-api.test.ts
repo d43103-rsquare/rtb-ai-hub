@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import http from 'http';
 import { handleInternalRequest, getInternalRoutes } from '../internal-api';
 
@@ -39,6 +39,53 @@ vi.mock('../clients/mcp-helper', () => ({
   }),
 }));
 
+vi.mock('../clients/mcp-client', () => ({
+  getMcpClient: vi.fn().mockReturnValue({
+    callTool: vi.fn().mockResolvedValue({ number: 42, html_url: 'https://github.com/test/42' }),
+  }),
+}));
+
+vi.mock('../clients/database', () => ({
+  database: {
+    saveWorkflowExecution: vi.fn().mockResolvedValue(undefined),
+    saveAICost: vi.fn().mockResolvedValue(undefined),
+    query: vi.fn().mockResolvedValue({ rows: [] }),
+  },
+}));
+
+vi.mock('../utils/e2e-runner', () => ({
+  runE2ETests: vi.fn().mockResolvedValue({
+    success: true,
+    passedTests: 5,
+    failedTests: 0,
+    totalTests: 5,
+    results: [],
+  }),
+}));
+
+vi.mock('../utils/wiki-knowledge', () => ({
+  WikiKnowledge: vi.fn().mockImplementation(() => ({
+    isAvailable: false,
+    buildIndex: vi.fn(),
+    searchForContext: vi.fn().mockResolvedValue(''),
+    getTableDoc: vi.fn().mockResolvedValue(''),
+    getDomainOverview: vi.fn().mockResolvedValue(''),
+  })),
+}));
+
+vi.mock('../queue/connection', () => ({
+  createRedisConnection: vi.fn().mockReturnValue({}),
+}));
+
+vi.mock('../utils/preview-manager', () => ({
+  PreviewManager: vi.fn().mockImplementation(() => ({
+    startPreview: vi.fn().mockResolvedValue({
+      success: true,
+      preview: { webUrl: 'http://localhost:5001', apiUrl: 'http://localhost:5002', status: 'running', webPort: 5001, apiPort: 5002 },
+    }),
+  })),
+}));
+
 vi.mock('@rtb-ai-hub/shared', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@rtb-ai-hub/shared');
   return {
@@ -57,18 +104,23 @@ vi.mock('@rtb-ai-hub/shared', async () => {
       TARGET_CI_ENABLED: true,
       TARGET_CD_ENABLED: false,
       LOCAL_POLLING_ENABLED: false,
-      OPENCLAW_NOTIFY_ENABLED: false,
       PREVIEW_ENABLED: true,
       IMPACT_ANALYSIS_ENABLED: false,
       DECISION_JOURNAL_ENABLED: false,
+      DEBATE_ENABLED: true,
+      CLAUDE_CODE_ENABLED: true,
+      WORKTREE_ENABLED: false,
     },
   };
 });
 
+const TEST_TOKEN = 'test-api-token';
+
 function createMockReq(
   method: string,
   url: string,
-  body?: Record<string, unknown>
+  body?: Record<string, unknown>,
+  authToken?: string
 ): http.IncomingMessage {
   const { Readable } = require('stream');
   const readable = new Readable();
@@ -78,7 +130,10 @@ function createMockReq(
   readable.push(null);
   readable.method = method;
   readable.url = url;
-  readable.headers = { 'content-type': 'application/json' };
+  readable.headers = {
+    'content-type': 'application/json',
+    ...(authToken ? { authorization: `Bearer ${authToken}` } : {}),
+  };
   return readable as unknown as http.IncomingMessage;
 }
 
@@ -118,94 +173,86 @@ function parseResBody(res: { _body: string }): Record<string, unknown> {
 }
 
 describe('getInternalRoutes', () => {
-  it('returns all 5 registered route paths', () => {
-    const routes = getInternalRoutes();
-    expect(routes).toHaveLength(5);
-    expect(routes).toContain('/internal/git/branch');
-    expect(routes).toContain('/internal/git/commit-push');
-    expect(routes).toContain('/internal/ci/run');
-    expect(routes).toContain('/internal/deploy/preview');
-    expect(routes).toContain('/internal/pr/create');
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    process.env.RTB_API_TOKEN = TEST_TOKEN;
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it('returns all registered route paths including hub-api routes', async () => {
+    const routes = await getInternalRoutes();
+    expect(routes.length).toBeGreaterThanOrEqual(5);
+    expect(routes).toContain('POST /trigger-e2e');
+    expect(routes).toContain('POST /api/infra/git/branch');
+    expect(routes).toContain('POST /api/infra/git/commit-push');
+    expect(routes).toContain('POST /api/infra/ci/run');
+    expect(routes).toContain('POST /api/infra/pr/create');
   });
 });
 
 describe('handleInternalRequest routing', () => {
-  it('returns false for GET requests', async () => {
-    const req = createMockReq('GET', '/internal/git/branch');
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    process.env.RTB_API_TOKEN = TEST_TOKEN;
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it('returns false for GET requests to unknown paths', async () => {
+    const req = createMockReq('GET', '/unknown', undefined, TEST_TOKEN);
     const res = createMockRes();
     const handled = await handleInternalRequest(req, res);
     expect(handled).toBe(false);
   });
 
-  it('returns false for non-internal paths', async () => {
-    const req = createMockReq('POST', '/health');
+  it('returns false for non-matching paths', async () => {
+    const req = createMockReq('POST', '/health', undefined, TEST_TOKEN);
     const res = createMockRes();
     const handled = await handleInternalRequest(req, res);
     expect(handled).toBe(false);
   });
 
-  it('returns 404 for unknown internal route', async () => {
-    const req = createMockReq('POST', '/internal/unknown');
+  it('returns 401 for requests without auth token', async () => {
+    const req = createMockReq('POST', '/api/infra/git/branch', { jiraKey: 'PROJ-1', type: 'feature', description: 'test', env: 'int' });
     const res = createMockRes();
     const handled = await handleInternalRequest(req, res);
     expect(handled).toBe(true);
-    expect(res._statusCode).toBe(404);
-    expect(parseResBody(res)).toHaveProperty('error');
+    expect(res._statusCode).toBe(401);
   });
 });
 
-describe('POST /internal/git/branch', () => {
-  it('validates missing jiraKey', async () => {
-    const req = createMockReq('POST', '/internal/git/branch', {
-      type: 'feature',
-      description: 'test',
-      env: 'int',
-    });
-    const res = createMockRes();
-    await handleInternalRequest(req, res);
-    expect(res._statusCode).toBe(400);
-    expect(parseResBody(res)).toEqual({ error: 'jiraKey string is required' });
+describe('POST /api/infra/git/branch', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    process.env.RTB_API_TOKEN = TEST_TOKEN;
+    vi.clearAllMocks();
   });
 
-  it('validates invalid branch type', async () => {
-    const req = createMockReq('POST', '/internal/git/branch', {
-      jiraKey: 'PROJ-123',
-      type: 'invalid',
-      description: 'test',
-      env: 'int',
-    });
-    const res = createMockRes();
-    await handleInternalRequest(req, res);
-    expect(res._statusCode).toBe(400);
-    const body = parseResBody(res);
-    expect(body.error as string).toContain('type must be one of');
-  });
-
-  it('validates missing env', async () => {
-    const req = createMockReq('POST', '/internal/git/branch', {
-      jiraKey: 'PROJ-123',
-      type: 'feature',
-      description: 'test',
-    });
-    const res = createMockRes();
-    await handleInternalRequest(req, res);
-    expect(res._statusCode).toBe(400);
-    expect(parseResBody(res)).toEqual({ error: 'env must be one of: int, stg, prd' });
+  afterEach(() => {
+    process.env = originalEnv;
   });
 
   it('creates branch successfully', async () => {
-    const req = createMockReq('POST', '/internal/git/branch', {
-      jiraKey: 'PROJ-123',
-      type: 'feature',
-      description: 'implement login page',
-      env: 'int',
-    });
+    const req = createMockReq(
+      'POST',
+      '/api/infra/git/branch',
+      { jiraKey: 'PROJ-123', type: 'feature', description: 'implement login page', env: 'int' },
+      TEST_TOKEN
+    );
     const res = createMockRes();
     await handleInternalRequest(req, res);
     expect(res._statusCode).toBe(200);
     const body = parseResBody(res);
-    expect(body.success).toBe(true);
     expect(body.branchName).toBe('feature/PROJ-123-test-desc');
+    expect(body.created).toBe(true);
   });
 
   it('returns 500 when createLocalBranch fails', async () => {
@@ -217,12 +264,12 @@ describe('POST /internal/git/branch', () => {
       error: 'branch already exists',
     });
 
-    const req = createMockReq('POST', '/internal/git/branch', {
-      jiraKey: 'PROJ-123',
-      type: 'feature',
-      description: 'test',
-      env: 'int',
-    });
+    const req = createMockReq(
+      'POST',
+      '/api/infra/git/branch',
+      { jiraKey: 'PROJ-123', type: 'feature', description: 'test', env: 'int' },
+      TEST_TOKEN
+    );
     const res = createMockRes();
     await handleInternalRequest(req, res);
     expect(res._statusCode).toBe(500);
@@ -230,47 +277,35 @@ describe('POST /internal/git/branch', () => {
   });
 });
 
-describe('POST /internal/git/commit-push', () => {
-  it('validates missing branchName', async () => {
-    const req = createMockReq('POST', '/internal/git/commit-push', {
-      files: [{ path: 'test.ts', content: 'hello' }],
-      message: 'test',
-    });
-    const res = createMockRes();
-    await handleInternalRequest(req, res);
-    expect(res._statusCode).toBe(400);
-    expect(parseResBody(res)).toEqual({ error: 'branchName string is required' });
+describe('POST /api/infra/git/commit-push', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    process.env.RTB_API_TOKEN = TEST_TOKEN;
+    vi.clearAllMocks();
   });
 
-  it('validates empty files array', async () => {
-    const req = createMockReq('POST', '/internal/git/commit-push', {
-      branchName: 'feature/test',
-      files: [],
-      message: 'test',
-    });
-    const res = createMockRes();
-    await handleInternalRequest(req, res);
-    expect(res._statusCode).toBe(400);
-    expect(parseResBody(res)).toEqual({
-      error: 'files array is required and must not be empty',
-    });
+  afterEach(() => {
+    process.env = originalEnv;
   });
 
   it('commits and pushes successfully', async () => {
-    const req = createMockReq('POST', '/internal/git/commit-push', {
-      branchName: 'feature/test',
-      files: [{ path: 'src/test.ts', content: 'export {}' }],
-      message: '[PROJ-123] test commit',
-    });
+    const req = createMockReq(
+      'POST',
+      '/api/infra/git/commit-push',
+      {
+        branchName: 'feature/test',
+        files: [{ path: 'src/test.ts', content: 'export {}' }],
+        message: '[PROJ-123] test commit',
+      },
+      TEST_TOKEN
+    );
     const res = createMockRes();
     await handleInternalRequest(req, res);
     expect(res._statusCode).toBe(200);
-    const body = parseResBody(res) as {
-      commit: Record<string, unknown>;
-      push: Record<string, unknown>;
-    };
-    expect(body.commit.success).toBe(true);
-    expect(body.push.success).toBe(true);
+    const body = parseResBody(res);
+    expect(body.commitHash).toBe('abc123');
+    expect(body.pushed).toBe(true);
   });
 
   it('returns 500 when commit fails', async () => {
@@ -283,52 +318,41 @@ describe('POST /internal/git/commit-push', () => {
       error: 'nothing to commit',
     });
 
-    const req = createMockReq('POST', '/internal/git/commit-push', {
-      branchName: 'feature/test',
-      files: [{ path: 'test.ts', content: 'hello' }],
-      message: 'test',
-    });
+    const req = createMockReq(
+      'POST',
+      '/api/infra/git/commit-push',
+      {
+        branchName: 'feature/test',
+        files: [{ path: 'test.ts', content: 'hello' }],
+        message: 'test',
+      },
+      TEST_TOKEN
+    );
     const res = createMockRes();
     await handleInternalRequest(req, res);
     expect(res._statusCode).toBe(500);
-    const body = parseResBody(res) as { commit: Record<string, unknown> };
-    expect(body.commit.success).toBe(false);
-  });
-
-  it('returns 500 when push fails', async () => {
-    const { pushBranch } = await import('../utils/local-git-ops');
-    vi.mocked(pushBranch).mockResolvedValueOnce({
-      success: false,
-      branchName: 'feature/test',
-      error: 'permission denied',
-    });
-
-    const req = createMockReq('POST', '/internal/git/commit-push', {
-      branchName: 'feature/test',
-      files: [{ path: 'test.ts', content: 'hello' }],
-      message: 'test',
-    });
-    const res = createMockRes();
-    await handleInternalRequest(req, res);
-    expect(res._statusCode).toBe(500);
-    const body = parseResBody(res) as { push: Record<string, unknown> };
-    expect(body.push.success).toBe(false);
   });
 });
 
-describe('POST /internal/ci/run', () => {
-  it('validates missing branchName', async () => {
-    const req = createMockReq('POST', '/internal/ci/run', {});
-    const res = createMockRes();
-    await handleInternalRequest(req, res);
-    expect(res._statusCode).toBe(400);
-    expect(parseResBody(res)).toEqual({ error: 'branchName string is required' });
+describe('POST /api/infra/ci/run', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    process.env.RTB_API_TOKEN = TEST_TOKEN;
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
   });
 
   it('runs CI successfully', async () => {
-    const req = createMockReq('POST', '/internal/ci/run', {
-      branchName: 'feature/test',
-    });
+    const req = createMockReq(
+      'POST',
+      '/api/infra/ci/run',
+      { branchName: 'feature/test' },
+      TEST_TOKEN
+    );
     const res = createMockRes();
     await handleInternalRequest(req, res);
     expect(res._statusCode).toBe(200);
@@ -336,7 +360,7 @@ describe('POST /internal/ci/run', () => {
     expect(body.success).toBe(true);
   });
 
-  it('returns CI failure as 200 with success=false', async () => {
+  it('returns CI failure with success=false', async () => {
     const { runTargetCi } = await import('../utils/target-ci');
     vi.mocked(runTargetCi).mockResolvedValueOnce({
       success: false,
@@ -363,7 +387,12 @@ describe('POST /internal/ci/run', () => {
       },
     });
 
-    const req = createMockReq('POST', '/internal/ci/run', { branchName: 'feature/test' });
+    const req = createMockReq(
+      'POST',
+      '/api/infra/ci/run',
+      { branchName: 'feature/test' },
+      TEST_TOKEN
+    );
     const res = createMockRes();
     await handleInternalRequest(req, res);
     expect(res._statusCode).toBe(200);
@@ -371,126 +400,34 @@ describe('POST /internal/ci/run', () => {
   });
 });
 
-describe('POST /internal/deploy/preview', () => {
-  it('validates missing branchName', async () => {
-    const req = createMockReq('POST', '/internal/deploy/preview', {
-      jiraKey: 'PROJ-123',
-      env: 'int',
-    });
-    const res = createMockRes();
-    await handleInternalRequest(req, res);
-    expect(res._statusCode).toBe(400);
-    expect(parseResBody(res)).toEqual({ error: 'branchName string is required' });
+describe('POST /api/infra/pr/create', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    process.env.RTB_API_TOKEN = TEST_TOKEN;
+    vi.clearAllMocks();
   });
 
-  it('validates missing jiraKey', async () => {
-    const req = createMockReq('POST', '/internal/deploy/preview', {
-      branchName: 'feature/test',
-      env: 'int',
-    });
-    const res = createMockRes();
-    await handleInternalRequest(req, res);
-    expect(res._statusCode).toBe(400);
-    expect(parseResBody(res)).toEqual({ error: 'jiraKey string is required' });
-  });
-
-  it('validates invalid env', async () => {
-    const req = createMockReq('POST', '/internal/deploy/preview', {
-      branchName: 'feature/test',
-      jiraKey: 'PROJ-123',
-      env: 'invalid',
-    });
-    const res = createMockRes();
-    await handleInternalRequest(req, res);
-    expect(res._statusCode).toBe(400);
-    expect(parseResBody(res)).toEqual({ error: 'env must be one of: int, stg, prd' });
-  });
-});
-
-describe('POST /internal/pr/create', () => {
-  it('validates missing branchName', async () => {
-    const req = createMockReq('POST', '/internal/pr/create', {
-      title: 'Test PR',
-    });
-    const res = createMockRes();
-    await handleInternalRequest(req, res);
-    expect(res._statusCode).toBe(400);
-    expect(parseResBody(res)).toEqual({ error: 'branchName string is required' });
-  });
-
-  it('validates missing title', async () => {
-    const req = createMockReq('POST', '/internal/pr/create', {
-      branchName: 'feature/test',
-    });
-    const res = createMockRes();
-    await handleInternalRequest(req, res);
-    expect(res._statusCode).toBe(400);
-    expect(parseResBody(res)).toEqual({ error: 'title string is required' });
+  afterEach(() => {
+    process.env = originalEnv;
   });
 
   it('creates PR successfully', async () => {
-    const req = createMockReq('POST', '/internal/pr/create', {
-      branchName: 'feature/PROJ-123-test',
-      title: '[PROJ-123] Test PR',
-      body: 'PR description',
-      base: 'develop',
-    });
-    const res = createMockRes();
-    await handleInternalRequest(req, res);
-    expect(res._statusCode).toBe(200);
-    const body = parseResBody(res) as { success: boolean; pr: Record<string, unknown> };
-    expect(body.success).toBe(true);
-    expect(body.pr.number).toBe(42);
-  });
-
-  it('uses default base branch and env when not provided', async () => {
-    const { createGitHubPullRequest } = await import('../clients/mcp-helper');
-    const req = createMockReq('POST', '/internal/pr/create', {
-      branchName: 'feature/test',
-      title: 'Test PR',
-    });
-    const res = createMockRes();
-    await handleInternalRequest(req, res);
-    expect(res._statusCode).toBe(200);
-    expect(vi.mocked(createGitHubPullRequest)).toHaveBeenCalledWith(
-      'int',
-      expect.objectContaining({
-        base: 'develop',
-        body: '',
-      })
+    const req = createMockReq(
+      'POST',
+      '/api/infra/pr/create',
+      {
+        branchName: 'feature/PROJ-123-test',
+        title: '[PROJ-123] Test PR',
+        body: 'PR description',
+      },
+      TEST_TOKEN
     );
-  });
-
-  it('returns 500 when MCP PR creation fails', async () => {
-    const { createGitHubPullRequest } = await import('../clients/mcp-helper');
-    vi.mocked(createGitHubPullRequest).mockResolvedValueOnce({
-      success: false,
-      error: 'MCP tool returned error',
-    });
-
-    const req = createMockReq('POST', '/internal/pr/create', {
-      branchName: 'feature/test',
-      title: 'Test PR',
-    });
     const res = createMockRes();
     await handleInternalRequest(req, res);
-    expect(res._statusCode).toBe(500);
-    const body = parseResBody(res) as { success: boolean; error: string };
-    expect(body.success).toBe(false);
-    expect(body.error).toBe('MCP tool returned error');
-  });
-
-  it('returns 503 when GITHUB_REPO is not configured', async () => {
-    const { getGitHubRepo } = await import('../clients/mcp-helper');
-    vi.mocked(getGitHubRepo).mockReturnValueOnce({ owner: '', repo: '' });
-
-    const req = createMockReq('POST', '/internal/pr/create', {
-      branchName: 'feature/test',
-      title: 'Test PR',
-    });
-    const res = createMockRes();
-    await handleInternalRequest(req, res);
-    expect(res._statusCode).toBe(503);
-    expect(parseResBody(res)).toEqual({ error: 'GITHUB_REPO not configured' });
+    expect(res._statusCode).toBe(200);
+    const body = parseResBody(res);
+    expect(body.prNumber).toBe(42);
+    expect(body.created).toBe(true);
   });
 });

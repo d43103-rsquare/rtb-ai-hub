@@ -7,6 +7,7 @@
 // Types
 export * from './types';
 export * from './auth-types';
+export * from './debate-types';
 
 // Constants
 export * from './constants';

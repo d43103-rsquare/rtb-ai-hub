@@ -7,7 +7,7 @@ import { WorkflowActionButtons } from '../components/workflow/WorkflowActionButt
 import { WorkflowProgressBar } from '../components/workflow/WorkflowProgressBar';
 import type { SimulatedWorkflow } from '../types/workflow';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+import { API_URL } from '../utils/constants';
 
 export function WorkflowDetailPage() {
   const { workflowKey } = useParams<{ workflowKey: string }>();

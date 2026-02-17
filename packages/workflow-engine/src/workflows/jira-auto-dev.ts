@@ -1,13 +1,47 @@
+/**
+ * Jira Auto-Dev Workflow — v2
+ *
+ * 새 흐름:
+ * 1. Workflow Execution 저장
+ * 2. Context 로드 (wiki, figma, 과거 결정)
+ * 3. DEBATE: 설계 토론 (PM, System Planner, Backend Dev, QA)
+ * 4. WORKTREE 생성 (이슈 키 기반)
+ * 5. CLAUDE.MD 생성 (debate 결과 + 컨텍스트)
+ * 6. CLAUDE CODE 실행 (worktree 내)
+ * 7. HARD GATES 실행 (실패 시 재시도 최대 3회)
+ * 8. PUSH + PR 생성
+ * 9. context_links 업데이트
+ */
+
 import {
   createLogger,
   DEFAULT_ENVIRONMENT,
   WorkflowType,
   WorkflowStatus,
   generateId,
+  AgentPersona,
 } from '@rtb-ai-hub/shared';
-import type { JiraWebhookEvent, Environment } from '@rtb-ai-hub/shared';
+import type {
+  JiraWebhookEvent,
+  Environment,
+  DebateConfig,
+  ClaudeCodeTask,
+  WorktreeInfo,
+} from '@rtb-ai-hub/shared';
 import { database } from '../clients/database';
+import { AnthropicClient } from '../clients/anthropic';
 import { updateContext } from '../utils/context-engine';
+import { createDebateEngine } from '../debate/engine';
+import { createDebateStore } from '../debate/debate-store';
+import { createPolicyEngine } from '../harness/policy-engine';
+import { buildClaudeMd } from '../claude-code/context-builder';
+import { buildMcpServers, buildAllowedTools } from '../claude-code/mcp-config-builder';
+import { executeWithGateRetry } from '../claude-code/executor';
+import { parseAndValidate } from '../claude-code/result-parser';
+import { createWorktreeManager } from '../worktree/manager';
+import { createWorktreeRegistry } from '../worktree/registry';
+import { WikiKnowledge } from '../utils/wiki-knowledge';
+import { findDecisionsByJiraKey } from '../utils/decision-store';
 
 const logger = createLogger('jira-auto-dev-workflow');
 
@@ -18,13 +52,15 @@ export async function processJiraAutoDev(
 ): Promise<{ dispatched: boolean; workflowExecutionId?: string }> {
   const issueKey = event.issueKey || event.payload?.issue?.key || 'UNKNOWN';
   const summary = event.payload?.issue?.fields?.summary || event.payload?.summary || 'No summary';
-  const labels: string[] = event.payload?.issue?.fields?.labels || [];
-  const components: Array<{ name: string }> = event.payload?.issue?.fields?.components || [];
+  const description = event.payload?.issue?.fields?.description || '';
+  const issueType = event.issueType || event.payload?.issue?.fields?.issuetype?.name;
 
   logger.info(
-    { issueKey, summary, env, labels, components: components.map((c) => c.name) },
-    'Processing Jira auto-dev workflow — dispatching to OpenClaw agents'
+    { issueKey, summary, env },
+    'Processing Jira auto-dev workflow — debate + Claude Code pipeline'
   );
+
+  // ─── Step 1: Save Workflow Execution ───────────────────────────────────────
 
   let executionId: string | undefined;
   try {
@@ -44,12 +80,10 @@ export async function processJiraAutoDev(
     );
   }
 
+  // ─── Step 2: Load Context ─────────────────────────────────────────────────
+
   try {
-    await updateContext({
-      jiraKey: issueKey,
-      summary,
-      env,
-    });
+    await updateContext({ jiraKey: issueKey, summary, env });
   } catch (ctxError) {
     logger.warn(
       { error: ctxError instanceof Error ? ctxError.message : String(ctxError) },
@@ -57,101 +91,276 @@ export async function processJiraAutoDev(
     );
   }
 
-  const dispatched = await dispatchToOpenClaw({
-    issueKey,
-    summary,
-    env,
-    labels,
-    components: components.map((c) => c.name),
-    executionId,
+  // Load wiki knowledge & previous decisions
+  let wikiKnowledge: string | undefined;
+  let previousDecisions: string | undefined;
+  try {
+    const wiki = new WikiKnowledge();
+    if (wiki.isAvailable) {
+      wikiKnowledge = await wiki.searchForContext(`${issueKey} ${summary}`);
+    }
+  } catch {
+    // wiki knowledge optional
+  }
+  try {
+    const decisions = await findDecisionsByJiraKey(issueKey);
+    if (decisions && decisions.length > 0) {
+      previousDecisions = decisions
+        .map((d) => `[${d.title}] ${d.decision}`)
+        .join('\n');
+    }
+  } catch {
+    // decision journal optional
+  }
+
+  // ─── Step 3: Design Debate ────────────────────────────────────────────────
+
+  if (!executionId) {
+    return { dispatched: false };
+  }
+
+  const aiClient = new AnthropicClient();
+  const debateStore = createDebateStore(database);
+  const policyEngine = createPolicyEngine();
+
+  const debateConfig: DebateConfig = {
+    topic: `Jira Issue ${issueKey}: ${summary}\n\n${description}\n\n이 이슈의 기술 설계와 구현 방안을 논의하세요.`,
+    participants: [
+      AgentPersona.PM,
+      AgentPersona.SYSTEM_PLANNER,
+      AgentPersona.BACKEND_DEVELOPER,
+      AgentPersona.QA,
+    ],
+    moderator: AgentPersona.PM,
+    maxTurns: parseInt(process.env.DEBATE_MAX_TURNS || '12', 10),
+    consensusRequired: true,
+    context: {
+      jiraKey: issueKey,
+      summary,
+      description,
+      env,
+      wikiKnowledge,
+      previousDecisions,
+    },
+    budgetUsd: parseFloat(process.env.DEBATE_COST_LIMIT_USD || '5'),
+  };
+
+  const debateEngine = createDebateEngine({
+    aiClient,
+    store: debateStore,
   });
 
-  if (!dispatched) {
-    logger.warn(
-      { issueKey },
-      'Failed to dispatch to OpenClaw — workflow will not proceed automatically'
+  let debateSession;
+  try {
+    debateSession = await debateEngine.run(debateConfig, executionId);
+    logger.info(
+      {
+        sessionId: debateSession.id,
+        outcome: debateSession.outcome?.status,
+        turns: debateSession.turns.length,
+        cost: debateSession.totalCostUsd.toFixed(4),
+      },
+      'Design debate completed'
     );
-
-    logger.error({ issueKey, summary }, 'OpenClaw dispatch failed — manual intervention required');
+  } catch (debateError) {
+    logger.error(
+      { error: debateError instanceof Error ? debateError.message : String(debateError) },
+      'Design debate failed'
+    );
+    await updateWorkflowStatus(executionId, WorkflowStatus.FAILED, {
+      error: `Debate failed: ${debateError instanceof Error ? debateError.message : String(debateError)}`,
+    });
+    return { dispatched: false, workflowExecutionId: executionId };
   }
 
-  return { dispatched, workflowExecutionId: executionId };
-}
+  // ─── Step 4: Create Worktree ──────────────────────────────────────────────
 
-async function dispatchToOpenClaw(params: {
-  issueKey: string;
-  summary: string;
-  env: Environment;
-  labels: string[];
-  components: string[];
-  executionId?: string;
-}): Promise<boolean> {
-  const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL;
-  const hooksToken = process.env.OPENCLAW_HOOKS_TOKEN;
+  // Note: Redis connection should be injected; for now use a placeholder
+  let worktreeManager: ReturnType<typeof createWorktreeManager> | null = null;
+  let worktreeInfo: WorktreeInfo | undefined;
+  try {
+    // Attempt to create worktree — requires WORK_REPO_LOCAL_PATH
+    if (process.env.WORK_REPO_LOCAL_PATH) {
+      const Redis = (await import('ioredis')).default;
+      const redis = new Redis({
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379'),
+        maxRetriesPerRequest: null,
+      });
+      const registry = createWorktreeRegistry(redis);
+      worktreeManager = createWorktreeManager(registry);
 
-  if (!gatewayUrl) {
-    logger.warn('OPENCLAW_GATEWAY_URL not configured — cannot dispatch to agents');
-    return false;
+      worktreeInfo = await worktreeManager.createWorktree(issueKey, summary, env, issueType);
+      logger.info({ issueKey, worktreePath: worktreeInfo.worktreePath }, 'Worktree created');
+    }
+  } catch (wtError) {
+    logger.warn(
+      { error: wtError instanceof Error ? wtError.message : String(wtError) },
+      'Failed to create worktree — using main repo'
+    );
   }
+
+  const workDir = worktreeInfo?.worktreePath || process.env.WORK_REPO_LOCAL_PATH || '';
+
+  if (!workDir) {
+    logger.error('No working directory available');
+    await updateWorkflowStatus(executionId, WorkflowStatus.FAILED, {
+      error: 'No WORK_REPO_LOCAL_PATH configured',
+    });
+    return { dispatched: false, workflowExecutionId: executionId };
+  }
+
+  // ─── Step 5: Build CLAUDE.MD ──────────────────────────────────────────────
+
+  const policyConstraints = policyEngine.generateConstraints(env);
+  const claudeMdContent = buildClaudeMd({
+    debateSession,
+    context: debateConfig.context,
+    env,
+    policyConstraints,
+  });
+
+  // ─── Step 6 & 7: Claude Code + Gate Retry ─────────────────────────────────
+
+  const mcpServers = buildMcpServers({ env, allowedServices: ['GITHUB', 'JIRA'] });
+  const allowedTools = buildAllowedTools(['GITHUB', 'JIRA']);
+
+  const task: ClaudeCodeTask = {
+    id: generateId('cc-task'),
+    debateSessionId: debateSession.id,
+    worktreePath: workDir,
+    prompt: `Jira Issue ${issueKey}: ${summary}\n\n위 CLAUDE.md의 설계 결정과 아티팩트를 참고하여 구현하세요.`,
+    claudeMdContent,
+    mcpServers,
+    allowedTools,
+    maxTurns: parseInt(process.env.CLAUDE_CODE_MAX_TURNS || '30', 10),
+    timeoutMs: parseInt(process.env.CLAUDE_CODE_TIMEOUT_MS || '600000', 10),
+  };
+
+  const runGates = async () => {
+    if (worktreeManager && worktreeInfo) {
+      return worktreeManager.runGates(issueKey);
+    }
+    // Fallback: no gates
+    return { allPassed: true, gates: [], totalDurationMs: 0 };
+  };
+
+  const { codeResult, gateResult } = await executeWithGateRetry(task, runGates);
+
+  // Validate against policies
+  const parsed = parseAndValidate(codeResult, env, policyEngine);
+  if (!parsed.policyCheck.allowed) {
+    logger.error(
+      { violations: parsed.policyCheck.violations },
+      'Policy violations — code rejected'
+    );
+    await updateWorkflowStatus(executionId, WorkflowStatus.FAILED, {
+      error: `Policy violations: ${parsed.policyCheck.violations.join('; ')}`,
+    });
+    return { dispatched: false, workflowExecutionId: executionId };
+  }
+
+  if (!codeResult.success || !gateResult.allPassed) {
+    logger.warn(
+      { success: codeResult.success, gatesAllPassed: gateResult.allPassed },
+      'Code generation or gates failed'
+    );
+    await updateWorkflowStatus(executionId, WorkflowStatus.FAILED, {
+      error: codeResult.error || 'Gates failed after max retries',
+    });
+    return { dispatched: false, workflowExecutionId: executionId };
+  }
+
+  // ─── Step 8: Push + PR ────────────────────────────────────────────────────
+
+  let prResult: { prNumber?: number; prUrl?: string } = {};
+  if (worktreeManager && worktreeInfo) {
+    try {
+      const prBody = buildPrBody(debateSession, gateResult, issueKey);
+      prResult = await worktreeManager.pushAndCreatePR(issueKey, {
+        title: `${issueKey}: ${summary}`,
+        body: prBody,
+      });
+
+      logger.info(
+        { issueKey, prNumber: prResult.prNumber, prUrl: prResult.prUrl },
+        'PR created successfully'
+      );
+    } catch (prError) {
+      logger.error(
+        { error: prError instanceof Error ? prError.message : String(prError) },
+        'Failed to create PR'
+      );
+    }
+  }
+
+  // ─── Step 9: Update Context ───────────────────────────────────────────────
 
   try {
-    const payload = {
-      type: 'workflow:trigger',
-      agent: 'pm-agent',
-      data: {
-        action: 'start-jira-workflow',
-        issueKey: params.issueKey,
-        summary: params.summary,
-        env: params.env,
-        labels: params.labels,
-        components: params.components,
-        executionId: params.executionId,
-        callbackUrl: `${process.env.RTB_API_URL || 'http://localhost:4000'}/webhooks/openclaw`,
-        opencodeServerUrl: process.env.OPENCODE_SERVER_URL || 'http://localhost:3333',
-      },
-      metadata: {
-        source: 'rtb-ai-hub',
-        timestamp: new Date().toISOString(),
-        correlationId: params.executionId || `jira-${params.issueKey}-${Date.now()}`,
-      },
-    };
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    if (hooksToken) {
-      headers['Authorization'] = `Bearer ${hooksToken}`;
-    }
-
-    const response = await fetch(`${gatewayUrl}/hooks/agent-task`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10000),
+    await updateContext({
+      jiraKey: issueKey,
+      env,
+      githubBranch: worktreeInfo?.branchName,
+      githubPrNumber: prResult.prNumber,
+      githubPrUrl: prResult.prUrl,
     });
-
-    if (!response.ok) {
-      logger.warn(
-        { status: response.status, issueKey: params.issueKey },
-        'OpenClaw Gateway returned non-OK status'
-      );
-      return false;
-    }
-
-    logger.info(
-      { issueKey: params.issueKey, env: params.env },
-      'Successfully dispatched to OpenClaw PM Agent'
-    );
-    return true;
-  } catch (error) {
-    logger.error(
-      {
-        error: error instanceof Error ? error.message : String(error),
-        issueKey: params.issueKey,
-      },
-      'Failed to dispatch to OpenClaw Gateway'
-    );
-    return false;
+  } catch {
+    // context update optional
   }
+
+  // Complete workflow
+  await updateWorkflowStatus(executionId, WorkflowStatus.COMPLETED, {
+    debateSessionId: debateSession.id,
+    prNumber: prResult.prNumber,
+    prUrl: prResult.prUrl,
+    totalCostUsd: debateSession.totalCostUsd + (codeResult.costUsd || 0),
+  });
+
+  return { dispatched: true, workflowExecutionId: executionId };
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+async function updateWorkflowStatus(
+  executionId: string | undefined,
+  status: WorkflowStatus,
+  extra: Record<string, unknown> = {}
+): Promise<void> {
+  if (!executionId) return;
+  try {
+    await database.saveWorkflowExecution({
+      id: executionId,
+      type: WorkflowType.JIRA_AUTO_DEV,
+      status,
+      completedAt: new Date(),
+      ...extra,
+    });
+  } catch {
+    // best effort
+  }
+}
+
+function buildPrBody(
+  debateSession: any,
+  gateResult: any,
+  issueKey: string
+): string {
+  const sections: string[] = [];
+
+  sections.push(`## Context\n- **Jira Issue**: ${issueKey}`);
+
+  if (debateSession.outcome) {
+    sections.push(`## Design Decision\n**Status**: ${debateSession.outcome.status}\n\n${debateSession.outcome.decision?.slice(0, 2000) || ''}`);
+  }
+
+  if (gateResult.gates.length > 0) {
+    const gateLines = gateResult.gates
+      .map((g: any) => `- ${g.passed ? '✅' : '❌'} ${g.gate} (${g.durationMs}ms)`)
+      .join('\n');
+    sections.push(`## Quality Gates\n${gateLines}`);
+  }
+
+  sections.push(`---\n\n🤖 Generated by RTB AI Hub — Debate Engine + Claude Code`);
+
+  return sections.join('\n\n');
 }

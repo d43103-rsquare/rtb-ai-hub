@@ -1,0 +1,246 @@
+/**
+ * Policy Engine — 환경/파일/에이전트/워크플로우 기반 정책 검사
+ *
+ * - 환경별 정책: prd에서 DB 스키마 변경 금지 등
+ * - 파일별 정책: 특정 경로 수정 시 승인 필요
+ * - 실행 전 정책 검사: 프롬프트에 제약사항 주입
+ * - 실행 후 정책 검증: 변경된 파일 대비 위반 체크
+ */
+
+import type {
+  AgentPersona,
+  HarnessPolicy,
+  HarnessViolation,
+  PolicyCheckResult,
+} from '@rtb-ai-hub/shared';
+import type { Environment } from '@rtb-ai-hub/shared';
+import { createLogger } from '@rtb-ai-hub/shared';
+
+const logger = createLogger('policy-engine');
+
+// ─── Default Policies ──────────────────────────────────────────────────────────
+
+const DEFAULT_POLICIES: HarnessPolicy[] = [
+  {
+    id: 'prd-no-db-schema-change',
+    name: 'No DB schema changes in production',
+    scope: 'env',
+    condition: 'env:prd && file:*.sql',
+    action: 'block',
+    message: 'DB schema changes are not allowed in production environment',
+    enabled: true,
+  },
+  {
+    id: 'prd-no-force-push',
+    name: 'No force push in production',
+    scope: 'env',
+    condition: 'env:prd && action:force-push',
+    action: 'block',
+    message: 'Force push is not allowed in production environment',
+    enabled: true,
+  },
+  {
+    id: 'stg-no-force-push',
+    name: 'No force push in staging',
+    scope: 'env',
+    condition: 'env:stg && action:force-push',
+    action: 'block',
+    message: 'Force push is not allowed in staging environment',
+    enabled: true,
+  },
+  {
+    id: 'protected-config-files',
+    name: 'Protected configuration files',
+    scope: 'file',
+    condition: 'file:docker-compose*.yml,Dockerfile*,.env*,drizzle/*.sql',
+    action: 'require-approval',
+    message: 'Changes to infrastructure/config files require approval',
+    enabled: true,
+  },
+  {
+    id: 'no-secret-exposure',
+    name: 'No secret exposure in code',
+    scope: 'file',
+    condition: 'file:*.ts,*.js && content:API_KEY|SECRET|PASSWORD|TOKEN',
+    action: 'block',
+    message: 'Potential secret exposure detected in code',
+    enabled: true,
+  },
+  {
+    id: 'prd-no-debug-code',
+    name: 'No debug code in production',
+    scope: 'env',
+    condition: 'env:prd && content:console.log|debugger',
+    action: 'warn',
+    message: 'Debug code should not be present in production changes',
+    enabled: true,
+  },
+];
+
+// ─── Policy Context ────────────────────────────────────────────────────────────
+
+export type PolicyContext = {
+  env: Environment;
+  agent?: AgentPersona;
+  changedFiles?: string[];
+  action?: string;
+  fileContents?: Map<string, string>;
+};
+
+// ─── PolicyEngine ──────────────────────────────────────────────────────────────
+
+export class PolicyEngine {
+  private policies: HarnessPolicy[];
+
+  constructor(customPolicies?: HarnessPolicy[]) {
+    this.policies = customPolicies ?? [...DEFAULT_POLICIES];
+    logger.info({ policyCount: this.policies.length }, 'PolicyEngine initialized');
+  }
+
+  /** Add a policy */
+  addPolicy(policy: HarnessPolicy): void {
+    this.policies.push(policy);
+  }
+
+  /** Remove a policy by id */
+  removePolicy(policyId: string): void {
+    this.policies = this.policies.filter((p) => p.id !== policyId);
+  }
+
+  /** Check all enabled policies against context; returns violations and warnings */
+  check(context: PolicyContext): PolicyCheckResult {
+    const violations: HarnessViolation[] = [];
+    const warnings: HarnessViolation[] = [];
+
+    for (const policy of this.policies) {
+      if (!policy.enabled) continue;
+
+      const matched = this.evaluateCondition(policy, context);
+      if (!matched) continue;
+
+      const violation: HarnessViolation = {
+        policyId: policy.id,
+        policyName: policy.name,
+        action: policy.action,
+        message: policy.message,
+        details: {
+          condition: policy.condition,
+          env: context.env,
+          changedFiles: context.changedFiles,
+          agent: context.agent,
+        },
+        timestamp: new Date().toISOString(),
+      };
+
+      if (policy.action === 'warn') {
+        warnings.push(violation);
+        logger.warn({ violation }, 'Policy warning');
+      } else {
+        violations.push(violation);
+        logger.error({ violation }, 'Policy violation');
+      }
+    }
+
+    return {
+      allowed: violations.filter((v) => v.action === 'block').length === 0,
+      violations,
+      warnings,
+    };
+  }
+
+  /** Generate constraint text for Claude Code prompt injection */
+  generateConstraints(env: Environment, agent?: AgentPersona): string {
+    const relevant = this.policies.filter((p) => {
+      if (!p.enabled) return false;
+      if (p.scope === 'env' && p.condition.includes(`env:${env}`)) return true;
+      if (p.scope === 'agent' && agent && p.condition.includes(`agent:${agent}`)) return true;
+      if (p.scope === 'file') return true;
+      return false;
+    });
+
+    if (relevant.length === 0) return '';
+
+    const lines = relevant.map((p) => `- [${p.action.toUpperCase()}] ${p.message}`);
+    return [
+      '## Execution Constraints (Auto-generated by Policy Engine)',
+      '',
+      'The following policies are enforced for this execution:',
+      ...lines,
+      '',
+      'Violations of BLOCK policies will cause the execution to be rejected.',
+    ].join('\n');
+  }
+
+  /** Get all policies */
+  getPolicies(): readonly HarnessPolicy[] {
+    return this.policies;
+  }
+
+  // ─── Condition Evaluation ──────────────────────────────────────────────────
+
+  private evaluateCondition(policy: HarnessPolicy, context: PolicyContext): boolean {
+    const parts = policy.condition.split('&&').map((p) => p.trim());
+
+    return parts.every((part: string) => this.evaluatePart(part, context));
+  }
+
+  private evaluatePart(part: string, context: PolicyContext): boolean {
+    // env:prd
+    const envMatch = part.match(/^env:(\w+)$/);
+    if (envMatch) {
+      return context.env === envMatch[1];
+    }
+
+    // action:force-push
+    const actionMatch = part.match(/^action:(.+)$/);
+    if (actionMatch) {
+      return context.action === actionMatch[1];
+    }
+
+    // agent:pm
+    const agentMatch = part.match(/^agent:(.+)$/);
+    if (agentMatch) {
+      return context.agent === agentMatch[1];
+    }
+
+    // file:*.sql,*.yml
+    const fileMatch = part.match(/^file:(.+)$/);
+    if (fileMatch) {
+      if (!context.changedFiles || context.changedFiles.length === 0) return false;
+      const patterns = fileMatch[1].split(',').map((p) => p.trim());
+      return context.changedFiles.some((file) =>
+        patterns.some((pattern) => matchGlob(file, pattern))
+      );
+    }
+
+    // content:console.log|debugger
+    const contentMatch = part.match(/^content:(.+)$/);
+    if (contentMatch) {
+      if (!context.fileContents || context.fileContents.size === 0) return false;
+      const keywords = contentMatch[1].split('|').map((k) => k.trim());
+      for (const [, content] of context.fileContents) {
+        if (keywords.some((kw) => content.includes(kw))) return true;
+      }
+      return false;
+    }
+
+    logger.warn({ part }, 'Unknown policy condition part');
+    return false;
+  }
+}
+
+/** Simple glob matching (supports * and ** patterns) */
+function matchGlob(filepath: string, pattern: string): boolean {
+  // Convert glob to regex
+  const regexStr = pattern
+    .replace(/\./g, '\\.')
+    .replace(/\*\*/g, '##DOUBLESTAR##')
+    .replace(/\*/g, '[^/]*')
+    .replace(/##DOUBLESTAR##/g, '.*');
+
+  return new RegExp(`(^|/)${regexStr}$`).test(filepath);
+}
+
+export function createPolicyEngine(customPolicies?: HarnessPolicy[]): PolicyEngine {
+  return new PolicyEngine(customPolicies);
+}

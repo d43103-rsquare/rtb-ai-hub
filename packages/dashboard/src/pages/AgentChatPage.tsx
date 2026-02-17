@@ -9,7 +9,7 @@ type ChatMessage = {
   monitoringUrl?: string;
 };
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+import { API_URL } from '../utils/constants';
 const STORAGE_KEY = 'agent-chat-history';
 const MAX_MESSAGES = 50;
 

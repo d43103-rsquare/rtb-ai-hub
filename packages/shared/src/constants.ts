@@ -185,10 +185,13 @@ export const FEATURE_FLAGS = {
   TARGET_CD_ENABLED: process.env.TARGET_CD_ENABLED === 'true',
   LOCAL_POLLING_ENABLED:
     process.env.LOCAL_POLLING_ENABLED === 'true' || process.env.DEV_MODE === 'true',
-  OPENCLAW_NOTIFY_ENABLED: process.env.OPENCLAW_NOTIFY_ENABLED === 'true',
   PREVIEW_ENABLED: process.env.PREVIEW_ENABLED === 'true',
   IMPACT_ANALYSIS_ENABLED: process.env.IMPACT_ANALYSIS_ENABLED === 'true',
   DECISION_JOURNAL_ENABLED: process.env.DECISION_JOURNAL_ENABLED === 'true',
+  // v2: Debate + Claude Code + Worktree pipeline
+  DEBATE_ENABLED: process.env.DEBATE_ENABLED !== 'false',
+  CLAUDE_CODE_ENABLED: process.env.CLAUDE_CODE_ENABLED !== 'false',
+  WORKTREE_ENABLED: process.env.WORKTREE_ENABLED === 'true',
 } as const;
 
 // ─── Branch Polling Configuration ────────────────────────────────────────────

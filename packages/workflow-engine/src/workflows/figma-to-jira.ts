@@ -1,19 +1,30 @@
+/**
+ * Figma → Jira Workflow — v2 (Debate Engine)
+ *
+ * 흐름:
+ * 1. Workflow Execution 저장
+ * 2. Figma 디자인 데이터 로드 (MCP)
+ * 3. DEBATE: 설계 분석 토론 (PM, UX Designer, UI Developer)
+ * 4. AI 분석 결과로 Jira Story → Task → Subtask 생성
+ * 5. 생성된 Task를 auto-dev 큐에 전송
+ */
+
 import {
   createLogger,
   generateId,
   WorkflowStatus,
   WorkflowType,
-  AITier,
   DEFAULT_ENVIRONMENT,
-  QUEUE_NAMES,
+  AgentPersona,
 } from '@rtb-ai-hub/shared';
 import type {
   FigmaWebhookEvent,
   WorkflowExecution,
   Environment,
   JiraWebhookEvent,
+  DebateConfig,
 } from '@rtb-ai-hub/shared';
-import { anthropicClient } from '../clients/anthropic';
+import { AnthropicClient, anthropicClient } from '../clients/anthropic';
 import { database } from '../clients/database';
 import {
   createJiraStory,
@@ -29,6 +40,8 @@ import {
   type FigmaContext,
 } from '../utils/figma-context';
 import { jiraQueue } from '../queue/queues';
+import { createDebateEngine } from '../debate/engine';
+import { createDebateStore } from '../debate/debate-store';
 
 const logger = createLogger('figma-to-jira-workflow');
 
@@ -70,8 +83,6 @@ export async function processFigmaToJira(
 
   logger.info({ event, executionId, userId, env }, 'Starting figma-to-jira workflow');
 
-  const aiClient = anthropicClient;
-
   const execution: Partial<WorkflowExecution> = {
     id: executionId,
     type: WorkflowType.FIGMA_TO_JIRA,
@@ -85,7 +96,8 @@ export async function processFigmaToJira(
   try {
     await database.saveWorkflowExecution(execution);
 
-    // Fetch actual Figma design data via MCP
+    // ─── Step 2: Fetch Figma Design Data ────────────────────────────────────
+
     let figmaContext: FigmaContext | null = null;
     try {
       figmaContext = await fetchFigmaDesignData(env, event);
@@ -112,129 +124,89 @@ export async function processFigmaToJira(
       );
     }
 
-    const figmaDataSection = figmaContext
-      ? `
-## Actual Figma Design Data (from Figma API)
+    // ─── Step 3: Design Debate (PM, UX Designer, UI Developer) ──────────────
 
-### Components Found (${figmaContext.components.length}):
-${figmaContext.components.map((c) => `- **${c.name}** (${c.type}): ${c.description}`).join('\n')}
+    const figmaDataSection = buildFigmaDataSection(figmaContext);
 
-### Styles Found (${figmaContext.styles.length}):
-${figmaContext.styles.map((s) => `- **${s.name}** (${s.styleType}): ${s.description}`).join('\n')}
+    const debateConfig: DebateConfig = {
+      topic: [
+        `Figma 디자인 분석 및 Jira 태스크 분해`,
+        ``,
+        `Figma File: ${event.fileName} (${event.fileKey})`,
+        `URL: ${event.fileUrl}`,
+        `Event Type: ${event.type}`,
+        ``,
+        figmaDataSection,
+        ``,
+        `위 Figma 디자인을 분석하여 다음을 결정하세요:`,
+        `1. Story: 전체 기능의 요약과 설명`,
+        `2. Tasks: 각 컴포넌트별 구현 태스크 (이름, 설명, 스토리 포인트, 컴포넌트 유형)`,
+        `3. Subtasks: 각 태스크의 하위 작업 (구현, 테스트, 검증)`,
+        ``,
+        `최종 결정을 JSON 아티팩트로 제출하세요:`,
+        `<artifact>`,
+        `{`,
+        `  "story": { "summary": "...", "description": "..." },`,
+        `  "tasks": [{ "name": "...", "description": "...", "storyPoints": 3, "componentType": "...", "subtasks": [...] }]`,
+        `}`,
+        `</artifact>`,
+      ].join('\n'),
+      participants: [
+        AgentPersona.PM,
+        AgentPersona.UX_DESIGNER,
+        AgentPersona.UI_DEVELOPER,
+      ],
+      moderator: AgentPersona.PM,
+      maxTurns: parseInt(process.env.DEBATE_MAX_TURNS || '8', 10),
+      consensusRequired: true,
+      context: {
+        jiraKey: '',
+        summary: `Figma: ${event.fileName}`,
+        description: figmaDataSection,
+        env,
+        figmaContext: figmaContext ? serializeFigmaContext(figmaContext) : undefined,
+      },
+      budgetUsd: parseFloat(process.env.DEBATE_COST_LIMIT_USD || '3'),
+    };
 
-### Design Tokens:
-- Colors: ${figmaContext.designTokens.colors.join(', ') || 'Not extracted'}
-- Font Families: ${figmaContext.designTokens.fontFamilies.join(', ') || 'Not extracted'}
-- Spacing: ${figmaContext.designTokens.spacingPattern}
+    const aiClient = new AnthropicClient();
+    const debateStore = createDebateStore(database);
+    const debateEngine = createDebateEngine({ aiClient, store: debateStore });
 
-### Node Tree Structure:
-\`\`\`
-${figmaContext.nodeTreeSummary || 'Not available'}
-\`\`\`
-`
-      : '\n(No actual Figma design data available — analyze based on file name and event type only)\n';
-
-    const prompt = `
-Analyze this Figma design update and generate a Jira Story with Tasks and Sub-tasks.
-
-Figma File: ${event.fileName} (${event.fileKey})
-URL: ${event.fileUrl}
-Event Type: ${event.type}
-
-${figmaDataSection}
-
-Based on the design data above, provide:
-1. Story Summary (one line, reflecting the overall feature from the design)
-2. Story Description (detailed overview of the feature)
-3. List of Tasks for EACH component that needs to be implemented as React:
-   - Task name (matching the actual Figma component name where possible)
-   - Description (including specific style/layout details from the design)
-   - Estimated story points (1-8)
-   - Component type (Button, Form, Layout, Card, Modal, etc.)
-   - Subtasks for each Task (implementation, test, verification):
-     * Implementation: Actual code implementation
-     * Test: Unit tests and component tests
-     * Verification: QA and design verification
-
-Format your response as JSON:
-{
-  "story": {
-    "summary": "...",
-    "description": "..."
-  },
-  "tasks": [
-    {
-      "name": "...",
-      "description": "...",
-      "storyPoints": 3,
-      "componentType": "...",
-      "subtasks": [
-        {
-          "name": "Implement ...",
-          "description": "...",
-          "type": "implementation"
-        },
-        {
-          "name": "Test ...",
-          "description": "...",
-          "type": "test"
-        },
-        {
-          "name": "Verify ...",
-          "description": "...",
-          "type": "verification"
-        }
-      ]
-    }
-  ]
-}
-`;
-
-    const aiResponse = await aiClient.generateText(prompt, {
-      tier: AITier.HEAVY,
-      maxTokens: 3000,
-      systemPrompt: 'You are an expert at analyzing UI designs and creating development tasks.',
-    });
-
-    logger.info({ executionId, tokensUsed: aiResponse.tokensUsed }, 'AI analysis complete');
-
+    let debateSession;
     let analysis: FigmaAnalysis;
+
     try {
-      const jsonMatch = aiResponse.text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        analysis = JSON.parse(jsonMatch[0]);
-      } else {
-        analysis = {
-          story: { summary: 'Figma Design Update', description: aiResponse.text },
-          tasks: [],
-        };
-      }
-    } catch (parseError) {
-      logger.warn({ parseError }, 'Failed to parse AI response as JSON, using raw text');
-      analysis = {
-        story: { summary: 'Figma Design Update', description: aiResponse.text },
-        tasks: [],
-      };
+      debateSession = await debateEngine.run(debateConfig, executionId);
+      logger.info(
+        {
+          sessionId: debateSession.id,
+          outcome: debateSession.outcome?.status,
+          turns: debateSession.turns.length,
+          cost: debateSession.totalCostUsd.toFixed(4),
+        },
+        'Figma analysis debate completed'
+      );
+
+      // Extract analysis from debate artifacts or outcome
+      analysis = extractAnalysisFromDebate(debateSession);
+    } catch (debateError) {
+      logger.warn(
+        { error: debateError instanceof Error ? debateError.message : String(debateError) },
+        'Debate failed — falling back to single AI call'
+      );
+
+      // Fallback: single AI call (backward compatibility)
+      const fallbackResult = await singleAiAnalysis(anthropicClient, event, figmaDataSection, executionId);
+      analysis = fallbackResult.analysis;
     }
 
-    const cost = aiClient.calculateCost(
-      aiResponse.tokensUsed.input,
-      aiResponse.tokensUsed.output,
-      aiResponse.model
-    );
-
-    await database.saveAICost({
-      id: generateId('cost'),
-      workflowExecutionId: executionId,
-      model: aiResponse.model,
-      tokensInput: aiResponse.tokensUsed.input,
-      tokensOutput: aiResponse.tokensUsed.output,
-      costUsd: cost,
-    });
+    // ─── Step 4: Create Jira Issues ─────────────────────────────────────────
 
     const mcpResults = await executeJiraMcpCalls(env, analysis, figmaContext);
 
-    // Enqueue created tasks for auto-development
+    // ─── Step 5: Enqueue for auto-development ───────────────────────────────
+
     for (const taskResult of mcpResults.tasks) {
       if (taskResult.result.success && taskResult.result.data?.key) {
         const syntheticEvent: JiraWebhookEvent = {
@@ -244,7 +216,7 @@ Format your response as JSON:
           issueType: 'Task',
           status: 'In Progress',
           summary: taskResult.name,
-          description: '', // Will be fetched by workflow
+          description: '',
           projectKey: getJiraProjectKey(env),
           labels: ['RTB-AI-HUB', 'auto-generated'],
           timestamp: new Date().toISOString(),
@@ -264,20 +236,25 @@ Format your response as JSON:
       }
     }
 
+    // ─── Complete ───────────────────────────────────────────────────────────
+
     const completedAt = new Date();
     const duration = completedAt.getTime() - startedAt.getTime();
+    const totalCost = debateSession?.totalCostUsd || 0;
 
     const finalExecution: Partial<WorkflowExecution> = {
       id: executionId,
       type: WorkflowType.FIGMA_TO_JIRA,
       status: WorkflowStatus.COMPLETED,
       input: event,
-      output: { analysis, mcpResults: summarizeMcpResults(mcpResults) },
+      output: {
+        analysis,
+        mcpResults: summarizeMcpResults(mcpResults),
+        debateSessionId: debateSession?.id,
+      },
       userId,
       env,
-      aiModel: aiResponse.model,
-      tokensUsed: aiResponse.tokensUsed,
-      costUsd: cost,
+      costUsd: totalCost,
       startedAt,
       completedAt,
       duration,
@@ -292,7 +269,7 @@ Format your response as JSON:
         taskCount: analysis.tasks.length,
         storyCreated: mcpResults.story?.success ?? false,
         tasksCreated: mcpResults.tasks.filter((t) => t.result.success).length,
-        cost,
+        cost: totalCost,
       },
       'figma-to-jira workflow completed'
     );
@@ -302,7 +279,7 @@ Format your response as JSON:
       executionId,
       analysis,
       mcpResults: summarizeMcpResults(mcpResults),
-      cost,
+      cost: totalCost,
       duration,
     };
   } catch (error) {
@@ -326,6 +303,142 @@ Format your response as JSON:
 
     throw error;
   }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function buildFigmaDataSection(figmaContext: FigmaContext | null): string {
+  if (!figmaContext) {
+    return '(No actual Figma design data available — analyze based on file name and event type only)';
+  }
+
+  return [
+    `## Actual Figma Design Data (from Figma API)`,
+    ``,
+    `### Components Found (${figmaContext.components.length}):`,
+    figmaContext.components.map((c) => `- **${c.name}** (${c.type}): ${c.description}`).join('\n'),
+    ``,
+    `### Styles Found (${figmaContext.styles.length}):`,
+    figmaContext.styles.map((s) => `- **${s.name}** (${s.styleType}): ${s.description}`).join('\n'),
+    ``,
+    `### Design Tokens:`,
+    `- Colors: ${figmaContext.designTokens.colors.join(', ') || 'Not extracted'}`,
+    `- Font Families: ${figmaContext.designTokens.fontFamilies.join(', ') || 'Not extracted'}`,
+    `- Spacing: ${figmaContext.designTokens.spacingPattern}`,
+    ``,
+    `### Node Tree Structure:`,
+    '```',
+    figmaContext.nodeTreeSummary || 'Not available',
+    '```',
+  ].join('\n');
+}
+
+function extractAnalysisFromDebate(debateSession: any): FigmaAnalysis {
+  // Try to extract from debate artifacts first
+  const allArtifacts = debateSession.turns
+    .flatMap((t: any) => t.artifacts || [])
+    .filter((a: any) => a.content);
+
+  // Check outcome decision for JSON
+  const sources = [
+    ...allArtifacts.map((a: any) => a.content),
+    debateSession.outcome?.decision || '',
+  ];
+
+  for (const source of sources) {
+    try {
+      const jsonMatch = source.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.story && parsed.tasks) {
+          return parsed as FigmaAnalysis;
+        }
+      }
+    } catch {
+      // continue to next source
+    }
+  }
+
+  // Fallback: construct from debate outcome
+  return {
+    story: {
+      summary: 'Figma Design Update',
+      description: debateSession.outcome?.decision || 'Design analysis via debate',
+    },
+    tasks: [],
+  };
+}
+
+async function singleAiAnalysis(
+  aiClient: typeof anthropicClient,
+  event: FigmaWebhookEvent,
+  figmaDataSection: string,
+  executionId: string
+): Promise<{ analysis: FigmaAnalysis }> {
+  const { AITier } = await import('@rtb-ai-hub/shared');
+
+  const prompt = `
+Analyze this Figma design update and generate a Jira Story with Tasks and Sub-tasks.
+
+Figma File: ${event.fileName} (${event.fileKey})
+URL: ${event.fileUrl}
+Event Type: ${event.type}
+
+${figmaDataSection}
+
+Based on the design data above, provide:
+1. Story Summary (one line, reflecting the overall feature from the design)
+2. Story Description (detailed overview of the feature)
+3. List of Tasks for EACH component that needs to be implemented as React
+4. Subtasks for each Task (implementation, test, verification)
+
+Format your response as JSON:
+{
+  "story": { "summary": "...", "description": "..." },
+  "tasks": [{ "name": "...", "description": "...", "storyPoints": 3, "componentType": "...", "subtasks": [...] }]
+}
+`;
+
+  const aiResponse = await aiClient.generateText(prompt, {
+    tier: AITier.HEAVY,
+    maxTokens: 3000,
+    systemPrompt: 'You are an expert at analyzing UI designs and creating development tasks.',
+  });
+
+  const cost = aiClient.calculateCost(
+    aiResponse.tokensUsed.input,
+    aiResponse.tokensUsed.output,
+    aiResponse.model
+  );
+
+  await database.saveAICost({
+    id: generateId('cost'),
+    workflowExecutionId: executionId,
+    model: aiResponse.model,
+    tokensInput: aiResponse.tokensUsed.input,
+    tokensOutput: aiResponse.tokensUsed.output,
+    costUsd: cost,
+  });
+
+  let analysis: FigmaAnalysis;
+  try {
+    const jsonMatch = aiResponse.text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      analysis = JSON.parse(jsonMatch[0]);
+    } else {
+      analysis = {
+        story: { summary: 'Figma Design Update', description: aiResponse.text },
+        tasks: [],
+      };
+    }
+  } catch {
+    analysis = {
+      story: { summary: 'Figma Design Update', description: aiResponse.text },
+      tasks: [],
+    };
+  }
+
+  return { analysis };
 }
 
 async function executeJiraMcpCalls(

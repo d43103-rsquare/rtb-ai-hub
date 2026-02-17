@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Button } from '../common/Button';
 import type { SimulatedWorkflow } from '../../types/workflow';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
-const JIRA_HOST = import.meta.env.VITE_JIRA_HOST || 'rsquare.atlassian.net';
+import { API_URL, JIRA_HOST } from '../../utils/constants';
 
 interface WorkflowActionButtonsProps {
   workflow: SimulatedWorkflow;

@@ -1,0 +1,40 @@
+FROM node:20-slim AS builder
+
+WORKDIR /app
+
+RUN npm config set strict-ssl false && npm install -g pnpm@10.28.2
+
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc* ./
+
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/auth-service/package.json ./packages/auth-service/
+
+RUN pnpm install --frozen-lockfile --shamefully-hoist
+
+COPY packages/shared ./packages/shared
+RUN cd packages/shared && pnpm run build
+
+COPY packages/auth-service ./packages/auth-service
+RUN cd packages/auth-service && pnpm run build
+
+FROM node:20-slim AS runner
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder /app/packages/shared/package.json ./packages/shared/
+
+COPY --from=builder /app/packages/auth-service/dist ./packages/auth-service/dist
+COPY --from=builder /app/packages/auth-service/package.json ./packages/auth-service/
+
+EXPOSE 4001
+
+WORKDIR /app/packages/auth-service
+
+CMD ["node", "dist/index.js"]

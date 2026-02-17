@@ -256,6 +256,29 @@ export const decisionJournal = pgTable(
   ]
 );
 
+// ─── debate_sessions ────────────────────────────────────────────────────────────
+
+export const debateSessions = pgTable(
+  'debate_sessions',
+  {
+    id: varchar('id', { length: 255 }).primaryKey(),
+    workflowExecutionId: varchar('workflow_execution_id', { length: 255 }).notNull(),
+    config: jsonb('config').notNull(),
+    turns: jsonb('turns').notNull().default([]),
+    outcome: jsonb('outcome'),
+    totalTokensInput: integer('total_tokens_input').default(0),
+    totalTokensOutput: integer('total_tokens_output').default(0),
+    totalCostUsd: decimal('total_cost_usd', { precision: 10, scale: 6 }).default('0'),
+    durationMs: integer('duration_ms'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('idx_debate_sessions_workflow_exec').on(table.workflowExecutionId),
+    index('idx_debate_sessions_created_at').on(table.createdAt),
+  ]
+);
+
 // ─── Relations ──────────────────────────────────────────────────────────────────
 
 export const workflowExecutionsRelations = relations(workflowExecutions, ({ one, many }) => ({
@@ -297,5 +320,12 @@ export const agentStepsRelations = relations(agentSteps, ({ one }) => ({
   session: one(agentSessions, {
     fields: [agentSteps.sessionId],
     references: [agentSessions.id],
+  }),
+}));
+
+export const debateSessionsRelations = relations(debateSessions, ({ one }) => ({
+  workflowExecution: one(workflowExecutions, {
+    fields: [debateSessions.workflowExecutionId],
+    references: [workflowExecutions.id],
   }),
 }));

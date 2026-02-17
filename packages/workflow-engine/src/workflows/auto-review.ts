@@ -1,19 +1,35 @@
+/**
+ * Auto-Review Workflow — v2 (Debate Engine)
+ *
+ * 흐름:
+ * 1. Workflow Execution 저장
+ * 2. DEBATE: 코드 리뷰 토론 (Backend Developer, QA, DevOps)
+ * 3. 리뷰 결과로 GitHub PR 리뷰 게시
+ */
+
 import {
   createLogger,
   generateId,
   WorkflowStatus,
   WorkflowType,
-  AITier,
   DEFAULT_ENVIRONMENT,
+  AgentPersona,
 } from '@rtb-ai-hub/shared';
-import type { GitHubWebhookEvent, WorkflowExecution, Environment } from '@rtb-ai-hub/shared';
-import { anthropicClient } from '../clients/anthropic';
+import type {
+  GitHubWebhookEvent,
+  WorkflowExecution,
+  Environment,
+  DebateConfig,
+} from '@rtb-ai-hub/shared';
+import { AnthropicClient, anthropicClient } from '../clients/anthropic';
 import { database } from '../clients/database';
 import {
   createGitHubReview,
   createGitHubReviewComment,
   getGitHubRepo,
 } from '../clients/mcp-helper';
+import { createDebateEngine } from '../debate/engine';
+import { createDebateStore } from '../debate/debate-store';
 
 const logger = createLogger('auto-review-workflow');
 
@@ -39,8 +55,6 @@ export async function processAutoReview(
 
   logger.info({ event, executionId, userId, env }, 'Starting auto-review workflow');
 
-  const aiClient = anthropicClient;
-
   const execution: Partial<WorkflowExecution> = {
     id: executionId,
     type: WorkflowType.AUTO_REVIEW,
@@ -54,7 +68,208 @@ export async function processAutoReview(
   try {
     await database.saveWorkflowExecution(execution);
 
-    const prompt = `
+    // ─── Step 2: Review Debate (Backend Dev, QA, DevOps) ────────────────────
+
+    const debateConfig: DebateConfig = {
+      topic: [
+        `GitHub PR 코드 리뷰`,
+        ``,
+        `Repository: ${event.repository}`,
+        `PR #${event.prNumber}: ${event.prTitle}`,
+        `Branch: ${event.branch}`,
+        `Commit SHA: ${event.sha}`,
+        ``,
+        `PR Payload:`,
+        JSON.stringify(event.payload, null, 2).slice(0, 5000),
+        ``,
+        `다음 관점에서 코드를 리뷰하세요:`,
+        `1. 코드 품질 및 유지보수성`,
+        `2. 보안 취약점`,
+        `3. 성능 이슈`,
+        `4. 베스트 프랙티스 및 디자인 패턴`,
+        `5. 잠재적 버그 또는 엣지 케이스`,
+        ``,
+        `최종 리뷰 결과를 JSON 아티팩트로 제출하세요:`,
+        `<artifact>`,
+        `{`,
+        `  "summary": "전체 리뷰 요약",`,
+        `  "approved": true/false,`,
+        `  "comments": [{ "file": "path/to/file", "line": 42, "comment": "...", "severity": "critical|warning|suggestion" }],`,
+        `  "suggestions": ["..."]`,
+        `}`,
+        `</artifact>`,
+      ].join('\n'),
+      participants: [
+        AgentPersona.BACKEND_DEVELOPER,
+        AgentPersona.QA,
+        AgentPersona.DEVOPS,
+      ],
+      moderator: AgentPersona.BACKEND_DEVELOPER,
+      maxTurns: parseInt(process.env.DEBATE_MAX_TURNS || '8', 10),
+      consensusRequired: true,
+      context: {
+        jiraKey: '',
+        summary: `PR Review: ${event.prTitle || event.repository}`,
+        description: `Repository: ${event.repository}, PR #${event.prNumber}`,
+        env,
+      },
+      budgetUsd: parseFloat(process.env.DEBATE_COST_LIMIT_USD || '3'),
+    };
+
+    const aiClient = new AnthropicClient();
+    const debateStore = createDebateStore(database);
+    const debateEngine = createDebateEngine({ aiClient, store: debateStore });
+
+    let debateSession;
+    let review: ReviewAnalysis;
+
+    try {
+      debateSession = await debateEngine.run(debateConfig, executionId);
+      logger.info(
+        {
+          sessionId: debateSession.id,
+          outcome: debateSession.outcome?.status,
+          turns: debateSession.turns.length,
+          cost: debateSession.totalCostUsd.toFixed(4),
+        },
+        'Code review debate completed'
+      );
+
+      review = extractReviewFromDebate(debateSession);
+    } catch (debateError) {
+      logger.warn(
+        { error: debateError instanceof Error ? debateError.message : String(debateError) },
+        'Debate failed — falling back to single AI call'
+      );
+
+      const fallbackResult = await singleAiReview(anthropicClient, event, executionId);
+      review = fallbackResult.review;
+    }
+
+    // ─── Step 3: Post GitHub Review ─────────────────────────────────────────
+
+    const mcpResults = await executeGitHubReviewMcpCalls(env, event, review);
+
+    // ─── Complete ───────────────────────────────────────────────────────────
+
+    const completedAt = new Date();
+    const duration = completedAt.getTime() - startedAt.getTime();
+    const totalCost = debateSession?.totalCostUsd || 0;
+
+    const finalExecution: Partial<WorkflowExecution> = {
+      id: executionId,
+      type: WorkflowType.AUTO_REVIEW,
+      status: WorkflowStatus.COMPLETED,
+      input: event,
+      output: {
+        review,
+        mcpResults,
+        debateSessionId: debateSession?.id,
+      },
+      userId,
+      env,
+      costUsd: totalCost,
+      startedAt,
+      completedAt,
+      duration,
+    };
+
+    await database.saveWorkflowExecution(finalExecution);
+
+    logger.info(
+      {
+        executionId,
+        approved: review.approved,
+        commentCount: review.comments.length,
+        reviewPosted: mcpResults.reviewPosted,
+        cost: totalCost,
+      },
+      'auto-review workflow completed'
+    );
+
+    return {
+      success: true,
+      executionId,
+      review,
+      mcpResults,
+      cost: totalCost,
+      duration,
+    };
+  } catch (error) {
+    logger.error({ error, executionId }, 'auto-review workflow failed');
+
+    const completedAt = new Date();
+    const duration = completedAt.getTime() - startedAt.getTime();
+
+    await database.saveWorkflowExecution({
+      id: executionId,
+      type: WorkflowType.AUTO_REVIEW,
+      status: WorkflowStatus.FAILED,
+      input: event,
+      userId,
+      env,
+      error: error instanceof Error ? error.message : String(error),
+      startedAt,
+      completedAt,
+      duration,
+    });
+
+    throw error;
+  }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function extractReviewFromDebate(debateSession: any): ReviewAnalysis {
+  const allArtifacts = debateSession.turns
+    .flatMap((t: any) => t.artifacts || [])
+    .filter((a: any) => a.content);
+
+  const sources = [
+    ...allArtifacts.map((a: any) => a.content),
+    debateSession.outcome?.decision || '',
+  ];
+
+  for (const source of sources) {
+    try {
+      const jsonMatch = source.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if ('summary' in parsed && 'approved' in parsed) {
+          return {
+            summary: parsed.summary || '',
+            approved: !!parsed.approved,
+            comments: Array.isArray(parsed.comments) ? parsed.comments : [],
+            suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions : [],
+          };
+        }
+      }
+    } catch {
+      // continue
+    }
+  }
+
+  // Fallback: construct from debate outcome text
+  const decision = debateSession.outcome?.decision || '';
+  const isApproved = decision.toLowerCase().includes('approve') &&
+    !decision.toLowerCase().includes('request changes');
+
+  return {
+    summary: decision.slice(0, 2000) || 'Review completed via debate',
+    approved: isApproved,
+    comments: [],
+    suggestions: [],
+  };
+}
+
+async function singleAiReview(
+  aiClient: typeof anthropicClient,
+  event: GitHubWebhookEvent,
+  executionId: string
+): Promise<{ review: ReviewAnalysis }> {
+  const { AITier } = await import('@rtb-ai-hub/shared');
+
+  const prompt = `
 Analyze this GitHub Pull Request and provide a thorough code review.
 
 Repository: ${event.repository}
@@ -83,116 +298,41 @@ Format your response as JSON:
 }
 `;
 
-    const aiResponse = await aiClient.generateText(prompt, {
-      tier: AITier.MEDIUM,
-      maxTokens: 3000,
-      systemPrompt:
-        'You are an expert code reviewer focused on code quality, security vulnerabilities, performance issues, and best practices.',
-    });
+  const aiResponse = await aiClient.generateText(prompt, {
+    tier: AITier.MEDIUM,
+    maxTokens: 3000,
+    systemPrompt:
+      'You are an expert code reviewer focused on code quality, security vulnerabilities, performance issues, and best practices.',
+  });
 
-    logger.info({ executionId, tokensUsed: aiResponse.tokensUsed }, 'AI analysis complete');
+  const cost = aiClient.calculateCost(
+    aiResponse.tokensUsed.input,
+    aiResponse.tokensUsed.output,
+    aiResponse.model
+  );
 
-    let review: ReviewAnalysis;
-    try {
-      const jsonMatch = aiResponse.text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        review = JSON.parse(jsonMatch[0]);
-      } else {
-        review = {
-          summary: aiResponse.text,
-          approved: false,
-          comments: [],
-          suggestions: [],
-        };
-      }
-    } catch (parseError) {
-      logger.warn({ parseError }, 'Failed to parse AI response as JSON, using raw text');
-      review = {
-        summary: aiResponse.text,
-        approved: false,
-        comments: [],
-        suggestions: [],
-      };
+  await database.saveAICost({
+    id: generateId('cost'),
+    workflowExecutionId: executionId,
+    model: aiResponse.model,
+    tokensInput: aiResponse.tokensUsed.input,
+    tokensOutput: aiResponse.tokensUsed.output,
+    costUsd: cost,
+  });
+
+  let review: ReviewAnalysis;
+  try {
+    const jsonMatch = aiResponse.text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      review = JSON.parse(jsonMatch[0]);
+    } else {
+      review = { summary: aiResponse.text, approved: false, comments: [], suggestions: [] };
     }
-
-    const cost = aiClient.calculateCost(
-      aiResponse.tokensUsed.input,
-      aiResponse.tokensUsed.output,
-      aiResponse.model
-    );
-
-    await database.saveAICost({
-      id: generateId('cost'),
-      workflowExecutionId: executionId,
-      model: aiResponse.model,
-      tokensInput: aiResponse.tokensUsed.input,
-      tokensOutput: aiResponse.tokensUsed.output,
-      costUsd: cost,
-    });
-
-    const mcpResults = await executeGitHubReviewMcpCalls(env, event, review);
-
-    const completedAt = new Date();
-    const duration = completedAt.getTime() - startedAt.getTime();
-
-    const finalExecution: Partial<WorkflowExecution> = {
-      id: executionId,
-      type: WorkflowType.AUTO_REVIEW,
-      status: WorkflowStatus.COMPLETED,
-      input: event,
-      output: { review, mcpResults },
-      userId,
-      env,
-      aiModel: aiResponse.model,
-      tokensUsed: aiResponse.tokensUsed,
-      costUsd: cost,
-      startedAt,
-      completedAt,
-      duration,
-    };
-
-    await database.saveWorkflowExecution(finalExecution);
-
-    logger.info(
-      {
-        executionId,
-        approved: review.approved,
-        commentCount: review.comments.length,
-        reviewPosted: mcpResults.reviewPosted,
-        cost,
-      },
-      'auto-review workflow completed'
-    );
-
-    return {
-      success: true,
-      executionId,
-      review,
-      mcpResults,
-      cost,
-      duration,
-    };
-  } catch (error) {
-    logger.error({ error, executionId }, 'auto-review workflow failed');
-
-    const completedAt = new Date();
-    const duration = completedAt.getTime() - startedAt.getTime();
-
-    await database.saveWorkflowExecution({
-      id: executionId,
-      type: WorkflowType.AUTO_REVIEW,
-      status: WorkflowStatus.FAILED,
-      input: event,
-      userId,
-      env,
-      error: error instanceof Error ? error.message : String(error),
-      startedAt,
-      completedAt,
-      duration,
-    });
-
-    throw error;
+  } catch {
+    review = { summary: aiResponse.text, approved: false, comments: [], suggestions: [] };
   }
+
+  return { review };
 }
 
 async function executeGitHubReviewMcpCalls(

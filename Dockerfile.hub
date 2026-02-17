@@ -1,0 +1,56 @@
+FROM node:20-slim AS builder
+
+WORKDIR /app
+
+RUN npm config set strict-ssl false && npm install -g pnpm@10.28.2
+
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc* ./
+
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/webhook-listener/package.json ./packages/webhook-listener/
+COPY packages/workflow-engine/package.json ./packages/workflow-engine/
+COPY packages/dashboard/package.json ./packages/dashboard/
+
+RUN pnpm install --frozen-lockfile --shamefully-hoist
+
+COPY packages/shared ./packages/shared
+RUN cd packages/shared && pnpm run build
+
+COPY packages/workflow-engine ./packages/workflow-engine
+RUN cd packages/workflow-engine && pnpm run build
+
+COPY packages/webhook-listener ./packages/webhook-listener
+RUN cd packages/webhook-listener && pnpm run build
+
+COPY packages/dashboard ./packages/dashboard
+RUN cd packages/dashboard && pnpm run build
+
+FROM node:20-slim AS runner
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder /app/packages/shared/package.json ./packages/shared/
+
+COPY --from=builder /app/packages/workflow-engine/dist ./packages/workflow-engine/dist
+COPY --from=builder /app/packages/workflow-engine/package.json ./packages/workflow-engine/
+
+COPY --from=builder /app/packages/webhook-listener/dist ./packages/webhook-listener/dist
+COPY --from=builder /app/packages/webhook-listener/package.json ./packages/webhook-listener/
+
+COPY --from=builder /app/packages/dashboard/dist ./packages/dashboard/dist
+
+EXPOSE 4100
+
+ENV ENABLE_WORKFLOW_ENGINE=true
+ENV ENABLE_DASHBOARD=true
+
+WORKDIR /app/packages/webhook-listener
+
+CMD ["node", "dist/hub-entry.js"]

@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { SimulatedWorkflow } from '../types/workflow';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
-const WS_URL = API_URL.replace(/^http/, 'ws');
+import { API_URL, WS_URL } from '../utils/constants';
 
 function transformWorkflow(wf: any): SimulatedWorkflow {
   return {

@@ -184,12 +184,11 @@ async function handleGetSystemInfo(redis: Redis): Promise<Record<string, unknown
     service: 'RTB AI Hub',
     timestamp: new Date().toISOString(),
     features: {
-      openclawAgents: true,
-      opencodeServer: !!process.env.OPENCODE_SERVER_URL,
-      opencodeServerUrl: process.env.OPENCODE_SERVER_URL || 'http://localhost:3333',
+      debateEngine: process.env.DEBATE_ENABLED !== 'false',
+      claudeCode: process.env.CLAUDE_CODE_ENABLED !== 'false',
+      worktree: process.env.WORKTREE_ENABLED === 'true',
       preview: process.env.PREVIEW_ENABLED === 'true',
       localPolling: process.env.LOCAL_POLLING_ENABLED === 'true' || process.env.DEV_MODE === 'true',
-      slackNotify: process.env.OPENCLAW_NOTIFY_ENABLED === 'true',
     },
   };
 

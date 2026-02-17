@@ -67,10 +67,10 @@ describe('Infra API', () => {
       expect(res.status).toBe(200);
       expect(res.body.branchName).toBe('feature/PROJ-123-add-login');
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3001/internal/git/branch',
+        'http://localhost:3001/api/infra/git/branch',
         expect.objectContaining({
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
         })
       );
     });

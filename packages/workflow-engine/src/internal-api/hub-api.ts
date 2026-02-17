@@ -17,7 +17,7 @@ import { getMcpClient } from '../clients/mcp-client.js';
 const logger = createLogger('hub-api');
 
 function authMiddleware(token: string | undefined): boolean {
-  const expectedToken = process.env.RTB_API_TOKEN || process.env.OPENCLAW_HOOKS_TOKEN;
+  const expectedToken = process.env.RTB_API_TOKEN;
   return !!(expectedToken && token && token === expectedToken);
 }
 
@@ -233,43 +233,6 @@ export async function handleCiRun(
   }
 }
 
-export async function handleOpencodeTask(
-  req: http.IncomingMessage,
-  res: http.ServerResponse
-): Promise<void> {
-  try {
-    const body = await readBody(req);
-    const { prompt, sessionId } = JSON.parse(body);
-
-    const opencodeServerUrl = process.env.OPENCODE_SERVER_URL || 'http://localhost:3333';
-
-    const response = await fetch(`${opencodeServerUrl}/api/tasks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        prompt,
-        sessionId,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      return sendError(res, response.status, error);
-    }
-
-    const data: any = await response.json();
-
-    sendJson(res, {
-      taskId: data.taskId || `task-${Date.now()}`,
-      status: data.status || 'completed',
-      result: data.result || data.output,
-      sessionId: data.sessionId || sessionId,
-    });
-  } catch (error: any) {
-    sendError(res, 500, error.message);
-  }
-}
-
 export async function handleDeployPreview(
   req: http.IncomingMessage,
   res: http.ServerResponse
@@ -386,12 +349,7 @@ export async function handleHubApiRequest(
     return true;
   }
 
-  if (req.method === 'POST' && url === '/api/infra/opencode/task') {
-    await handleOpencodeTask(req, res);
-    return true;
-  }
-
-  if (req.method === 'POST' && url === '/api/infra/deploy/preview') {
+if (req.method === 'POST' && url === '/api/infra/deploy/preview') {
     await handleDeployPreview(req, res);
     return true;
   }
@@ -415,7 +373,6 @@ export function getHubApiRoutes(): string[] {
     'POST /api/infra/git/branch',
     'POST /api/infra/git/commit-push',
     'POST /api/infra/ci/run',
-    'POST /api/infra/opencode/task',
     'POST /api/infra/deploy/preview',
     'POST /api/infra/pr/create',
   ];
