@@ -5,7 +5,7 @@
  * Claude Code 실행, Git Worktree 관리, Harness 계층 타입 정의
  */
 
-import type { AITier, Environment } from './types';
+import type { AITier, Environment, ProviderType } from './types';
 
 // ─── Agent Persona ──────────────────────────────────────────────────────────────
 
@@ -29,7 +29,8 @@ export type PersonaDefinition = {
   decisionFramework: string;
   domainExpertise: string[];
   handoffTriggers: Partial<Record<AgentPersona, string>>;
-  aiTier: AITier;
+  aiTier: AITier;                         // fallback용 — DB 설정 없을 때 Claude tier 결정에 사용
+  preferredProvider?: ProviderType;       // 신규: persona 수준 권장 provider
   maxTokensPerTurn: number;
 };
 
