@@ -23,7 +23,10 @@ import type {
 } from '@rtb-ai-hub/shared';
 import { database } from '../clients/database';
 import { ClaudeAdapter } from '../clients/adapters/claude-adapter';
+import { OpenAIAdapter } from '../clients/adapters/openai-adapter';
+import { GeminiAdapter } from '../clients/adapters/gemini-adapter';
 import { createProviderRouter } from '../clients/provider-router';
+import type { ProviderAdapter } from '@rtb-ai-hub/shared';
 import {
   createGitHubReview,
   createGitHubReviewComment,
@@ -117,7 +120,10 @@ export async function processAutoReview(
       budgetUsd: parseFloat(process.env.DEBATE_COST_LIMIT_USD || '3'),
     };
 
-    const router = createProviderRouter([new ClaudeAdapter()]);
+    const adapters: ProviderAdapter[] = [new ClaudeAdapter()];
+    if (process.env.OPENAI_API_KEY) adapters.push(new OpenAIAdapter());
+    if (process.env.GEMINI_API_KEY) adapters.push(new GeminiAdapter());
+    const router = createProviderRouter(adapters);
     await router.loadConfig(env);
     const debateStore = createDebateStore(database);
     const debateEngine = createDebateEngine({ router, store: debateStore });

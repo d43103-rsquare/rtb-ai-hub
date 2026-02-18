@@ -30,7 +30,10 @@ import type {
 } from '@rtb-ai-hub/shared';
 import { database } from '../clients/database';
 import { ClaudeAdapter } from '../clients/adapters/claude-adapter';
+import { OpenAIAdapter } from '../clients/adapters/openai-adapter';
+import { GeminiAdapter } from '../clients/adapters/gemini-adapter';
 import { createProviderRouter } from '../clients/provider-router';
+import type { ProviderAdapter } from '@rtb-ai-hub/shared';
 import { updateContext } from '../utils/context-engine';
 import { createDebateEngine } from '../debate/engine';
 import { createDebateStore } from '../debate/debate-store';
@@ -120,7 +123,10 @@ export async function processJiraAutoDev(
     return { dispatched: false };
   }
 
-  const router = createProviderRouter([new ClaudeAdapter()]);
+  const adapters: ProviderAdapter[] = [new ClaudeAdapter()];
+  if (process.env.OPENAI_API_KEY) adapters.push(new OpenAIAdapter());
+  if (process.env.GEMINI_API_KEY) adapters.push(new GeminiAdapter());
+  const router = createProviderRouter(adapters);
   await router.loadConfig(env);
   const debateStore = createDebateStore(database);
   const policyEngine = createPolicyEngine();
