@@ -29,7 +29,8 @@ import type {
   WorktreeInfo,
 } from '@rtb-ai-hub/shared';
 import { database } from '../clients/database';
-import { AnthropicClient } from '../clients/anthropic';
+import { ClaudeAdapter } from '../clients/adapters/claude-adapter';
+import { createProviderRouter } from '../clients/provider-router';
 import { updateContext } from '../utils/context-engine';
 import { createDebateEngine } from '../debate/engine';
 import { createDebateStore } from '../debate/debate-store';
@@ -119,7 +120,8 @@ export async function processJiraAutoDev(
     return { dispatched: false };
   }
 
-  const aiClient = new AnthropicClient();
+  const router = createProviderRouter([new ClaudeAdapter()]);
+  await router.loadConfig(env);
   const debateStore = createDebateStore(database);
   const policyEngine = createPolicyEngine();
 
@@ -146,7 +148,7 @@ export async function processJiraAutoDev(
   };
 
   const debateEngine = createDebateEngine({
-    aiClient,
+    router,
     store: debateStore,
   });
 

@@ -24,8 +24,9 @@ import type {
   JiraWebhookEvent,
   DebateConfig,
 } from '@rtb-ai-hub/shared';
-import { AnthropicClient, anthropicClient } from '../clients/anthropic';
 import { database } from '../clients/database';
+import { ClaudeAdapter } from '../clients/adapters/claude-adapter';
+import { createProviderRouter } from '../clients/provider-router';
 import {
   createJiraStory,
   createJiraTask,
@@ -169,9 +170,10 @@ export async function processFigmaToJira(
       budgetUsd: parseFloat(process.env.DEBATE_COST_LIMIT_USD || '3'),
     };
 
-    const aiClient = new AnthropicClient();
+    const router = createProviderRouter([new ClaudeAdapter()]);
+    await router.loadConfig(env);
     const debateStore = createDebateStore(database);
-    const debateEngine = createDebateEngine({ aiClient, store: debateStore });
+    const debateEngine = createDebateEngine({ router, store: debateStore });
 
     let debateSession;
     let analysis: FigmaAnalysis;
@@ -197,7 +199,7 @@ export async function processFigmaToJira(
       );
 
       // Fallback: single AI call (backward compatibility)
-      const fallbackResult = await singleAiAnalysis(anthropicClient, event, figmaDataSection, executionId);
+      const fallbackResult = await singleAiAnalysis(new ClaudeAdapter(), event, figmaDataSection, executionId);
       analysis = fallbackResult.analysis;
     }
 
@@ -370,13 +372,11 @@ function extractAnalysisFromDebate(debateSession: any): FigmaAnalysis {
 }
 
 async function singleAiAnalysis(
-  aiClient: typeof anthropicClient,
+  adapter: ClaudeAdapter,
   event: FigmaWebhookEvent,
   figmaDataSection: string,
   executionId: string
 ): Promise<{ analysis: FigmaAnalysis }> {
-  const { AITier } = await import('@rtb-ai-hub/shared');
-
   const prompt = `
 Analyze this Figma design update and generate a Jira Story with Tasks and Sub-tasks.
 
@@ -399,13 +399,13 @@ Format your response as JSON:
 }
 `;
 
-  const aiResponse = await aiClient.generateText(prompt, {
-    tier: AITier.HEAVY,
-    maxTokens: 3000,
+  const aiResponse = await adapter.complete(prompt, {
     systemPrompt: 'You are an expert at analyzing UI designs and creating development tasks.',
+    maxTokens: 3000,
+    temperature: 0.3,
   });
 
-  const cost = aiClient.calculateCost(
+  const cost = adapter.calculateCost(
     aiResponse.tokensUsed.input,
     aiResponse.tokensUsed.output,
     aiResponse.model
