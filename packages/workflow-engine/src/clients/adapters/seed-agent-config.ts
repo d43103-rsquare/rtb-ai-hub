@@ -12,13 +12,17 @@ const DEFAULT_CONFIGS = [
   { persona: 'devops',            provider: 'gemini', model: 'gemini-2.0-flash' },
 ] as const;
 
-for (const config of DEFAULT_CONFIGS) {
-  await db.insert(agentModelConfig).values({
-    id: generateId('amc'),
-    ...config,
-    env: 'all',
-    enabled: true,
-  }).onConflictDoNothing();
+async function seed(): Promise<void> {
+  for (const config of DEFAULT_CONFIGS) {
+    await db.insert(agentModelConfig).values({
+      id: generateId('amc'),
+      ...config,
+      env: 'all',
+      enabled: true,
+    }).onConflictDoNothing();
+  }
+  console.log('Seeded agent_model_config');
+  process.exit(0);
 }
-console.log('Seeded agent_model_config');
-process.exit(0);
+
+seed().catch((err) => { console.error(err); process.exit(1); });
