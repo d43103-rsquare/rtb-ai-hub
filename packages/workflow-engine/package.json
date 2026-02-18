@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.17.0",
+    "@google/generative-ai": "^0.24.1",
     "@rtb-ai-hub/shared": "workspace:*",
     "bullmq": "^5.4.0",
     "drizzle-orm": "^0.45.1",
