@@ -11,8 +11,6 @@ import { createContextRouter } from './context';
 import { createKnowledgeRouter } from './knowledge';
 import { createInfraRouter } from './infra';
 import { createWorkflowsRouter } from './workflows';
-import { createAgentChatRouter } from './agent-chat';
-
 export function createRoutes(queues: {
   figmaQueue: Queue;
   jiraQueue: Queue;
@@ -32,7 +30,6 @@ export function createRoutes(queues: {
   router.use(createKnowledgeRouter());
   router.use(createInfraRouter());
   router.use(createWorkflowsRouter());
-  router.use(createAgentChatRouter());
 
   return router;
 }

@@ -201,61 +201,6 @@ describe('Infra API', () => {
     });
   });
 
-  describe('POST /api/infra/opencode/task', () => {
-    it('proxies to opencode server', async () => {
-      mockFetchResponse(200, { taskId: 'task-1', status: 'completed' });
-
-      const res = await request(app).post('/api/infra/opencode/task').send({
-        description: 'Add login page',
-        prompt: 'Create a React login component',
-      });
-
-      expect(res.status).toBe(200);
-      expect(res.body.taskId).toBe('task-1');
-      expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3333/api/task',
-        expect.objectContaining({ method: 'POST' })
-      );
-    });
-
-    it('returns 400 when description is missing', async () => {
-      const res = await request(app).post('/api/infra/opencode/task').send({ prompt: 'test' });
-
-      expect(res.status).toBe(400);
-      expect(res.body.error).toBe('description string is required');
-    });
-
-    it('returns 400 when prompt is missing', async () => {
-      const res = await request(app).post('/api/infra/opencode/task').send({ description: 'test' });
-
-      expect(res.status).toBe(400);
-      expect(res.body.error).toBe('prompt string is required');
-    });
-
-    it('returns 502 when opencode server is unreachable', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
-
-      const res = await request(app).post('/api/infra/opencode/task').send({
-        description: 'test',
-        prompt: 'test',
-      });
-
-      expect(res.status).toBe(502);
-      expect(res.body.error).toContain('OpenCode server unreachable');
-    });
-
-    it('uses custom OPENCODE_SERVER_URL', async () => {
-      process.env.OPENCODE_SERVER_URL = 'http://custom:9999';
-      mockFetchResponse(200, { taskId: 'task-2' });
-
-      await request(app).post('/api/infra/opencode/task').send({
-        description: 'test',
-        prompt: 'test',
-      });
-
-      expect(mockFetch).toHaveBeenCalledWith('http://custom:9999/api/task', expect.any(Object));
-    });
-  });
 
   describe('POST /api/infra/deploy/preview', () => {
     it('proxies valid request', async () => {

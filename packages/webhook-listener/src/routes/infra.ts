@@ -14,10 +14,6 @@ function getWorkflowEngineUrl(): string {
   return getEnv('WORKFLOW_ENGINE_URL', 'http://localhost:3001');
 }
 
-function getOpenCodeServerUrl(): string {
-  return getEnv('OPENCODE_SERVER_URL', 'http://localhost:3333');
-}
-
 async function proxyToWorkflowEngine(
   path: string,
   body: Record<string, unknown>,
@@ -144,47 +140,6 @@ export function createInfraRouter(): Router {
         'CI run failed'
       );
       res.status(500).json({ error: 'CI run failed' });
-    }
-  });
-
-  router.post('/api/infra/opencode/task', internalAuth, async (req, res) => {
-    try {
-      const { description, prompt, subagent_type } = req.body;
-
-      if (!description || typeof description !== 'string') {
-        res.status(400).json({ error: 'description string is required' });
-        return;
-      }
-      if (!prompt || typeof prompt !== 'string') {
-        res.status(400).json({ error: 'prompt string is required' });
-        return;
-      }
-
-      const openCodeUrl = getOpenCodeServerUrl();
-      try {
-        const response = await fetch(`${openCodeUrl}/api/task`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            description,
-            prompt,
-            subagent_type: subagent_type || 'sisyphus',
-          }),
-          signal: AbortSignal.timeout(300_000),
-        });
-        const data = await response.json();
-        res.status(response.status).json(data);
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        logger.error({ openCodeUrl, error: msg }, 'OpenCode server unreachable');
-        res.status(502).json({ error: `OpenCode server unreachable: ${msg}` });
-      }
-    } catch (error) {
-      logger.error(
-        { error: error instanceof Error ? error.message : String(error) },
-        'OpenCode task failed'
-      );
-      res.status(500).json({ error: 'OpenCode task failed' });
     }
   });
 
