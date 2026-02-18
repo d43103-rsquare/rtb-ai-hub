@@ -64,3 +64,6 @@ coverage/
 
 # Sisyphus (keep plans but ignore evidence)
 .sisyphus/evidence/
+
+# Git worktrees
+.worktrees/
