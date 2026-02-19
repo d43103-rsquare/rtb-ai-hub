@@ -103,6 +103,8 @@ export type DebateOutcome = {
   decision: string;
   artifacts: DebateArtifact[];
   dissentingViews?: Array<{ agent: AgentPersona; view: string }>;
+  /** 리뷰어가 반드시 확인해야 할 판단 포인트 — moderator가 합의/결정 턴에서 생성 */
+  reviewCheckpoints?: string[];
   error?: string;
 };
 

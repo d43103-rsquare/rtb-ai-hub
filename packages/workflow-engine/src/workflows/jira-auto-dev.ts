@@ -350,7 +350,48 @@ function buildPrBody(
   sections.push(`## Context\n- **Jira Issue**: ${issueKey}`);
 
   if (debateSession.outcome) {
-    sections.push(`## Design Decision\n**Status**: ${debateSession.outcome.status}\n\n${debateSession.outcome.decision?.slice(0, 2000) || ''}`);
+    const outcome = debateSession.outcome;
+    const statusLabel: Record<string, string> = {
+      consensus: '🟢 합의',
+      'moderator-decided': '🟡 중재자 결정',
+      'max-turns-reached': '🔴 최대 턴 도달',
+      'budget-exceeded': '🔴 예산 초과',
+      error: '🔴 오류',
+    };
+    const badge = statusLabel[outcome.status] ?? outcome.status;
+
+    // Strip ## REVIEW_CHECKPOINTS from decision body
+    const decisionBody = (outcome.decision ?? '')
+      .replace(/\n?##\s*REVIEW_CHECKPOINTS[\s\S]*$/, '')
+      .trim()
+      .slice(0, 2000);
+
+    const rationaleLines = [
+      `## AI Decision Rationale`,
+      `**결정 방식**: ${badge}`,
+      '',
+      '**선택 이유**',
+      '',
+      decisionBody,
+    ];
+
+    // Dissenting views
+    if (outcome.dissentingViews?.length > 0) {
+      rationaleLines.push('', '**고려한 반대 의견**', '');
+      for (const { agent, view } of outcome.dissentingViews) {
+        rationaleLines.push(`> **${agent}**: ${(view ?? '').slice(0, 200)}`);
+      }
+    }
+
+    // Review checkpoints — GitHub renders - [ ] as interactive checkboxes
+    if (outcome.reviewCheckpoints?.length > 0) {
+      rationaleLines.push('', '**리뷰어 체크포인트** — 아래 항목을 반드시 확인하고 승인해주세요', '');
+      for (const checkpoint of outcome.reviewCheckpoints) {
+        rationaleLines.push(`- [ ] ${checkpoint}`);
+      }
+    }
+
+    sections.push(rationaleLines.join('\n'));
   }
 
   if (gateResult.gates.length > 0) {

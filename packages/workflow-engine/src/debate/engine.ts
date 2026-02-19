@@ -223,6 +223,7 @@ export class DebateEngine {
           status: 'consensus',
           decision: consensusTurn.content,
           artifacts: this.collectArtifacts(session.turns),
+          reviewCheckpoints: extractReviewCheckpoints(consensusTurn.content),
         };
         return;
       }
@@ -258,6 +259,7 @@ export class DebateEngine {
           decision: decisionTurn.content,
           artifacts: this.collectArtifacts(session.turns),
           dissentingViews,
+          reviewCheckpoints: extractReviewCheckpoints(decisionTurn.content),
         };
         return;
       }
@@ -370,6 +372,29 @@ export class DebateEngine {
   private collectArtifacts(turns: DebateTurn[]) {
     return turns.flatMap((t) => t.artifacts);
   }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * moderator의 consensus/decision 턴 내용에서 ## REVIEW_CHECKPOINTS 섹션을 파싱한다.
+ * 형식:
+ *   ## REVIEW_CHECKPOINTS
+ *   - 체크포인트 1
+ *   - 체크포인트 2
+ */
+export function extractReviewCheckpoints(content: string): string[] | undefined {
+  const match = content.match(/##\s*REVIEW_CHECKPOINTS\s*\n([\s\S]*?)(?:\n##|\n---|\s*$)/);
+  if (!match) return undefined;
+
+  const items = match[1]
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('-'))
+    .map((line) => line.slice(1).trim())
+    .filter(Boolean);
+
+  return items.length > 0 ? items : undefined;
 }
 
 export function createDebateEngine(options: DebateEngineOptions): DebateEngine {
