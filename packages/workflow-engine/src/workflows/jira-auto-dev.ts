@@ -42,6 +42,7 @@ import { createWorktreeManager } from '../worktree/manager';
 import { createWorktreeRegistry } from '../worktree/registry';
 import { WikiKnowledge } from '../utils/wiki-knowledge';
 import { findDecisionsByJiraKey } from '../utils/decision-store';
+import { isPaused } from '../utils/pause-checker';
 
 const logger = createLogger('jira-auto-dev-workflow');
 
@@ -114,6 +115,12 @@ export async function processJiraAutoDev(
   }
 
   // ─── Step 3: Design Debate ────────────────────────────────────────────────
+
+  // Pause check before Design Debate
+  if (executionId && await isPaused(executionId)) {
+    logger.info({ executionId, issueKey }, 'Workflow paused before design debate');
+    return { dispatched: false, workflowExecutionId: executionId };
+  }
 
   if (!executionId) {
     return { dispatched: false };
@@ -221,6 +228,12 @@ export async function processJiraAutoDev(
   });
 
   // ─── Step 6 & 7: Claude Code + Gate Retry ─────────────────────────────────
+
+  // Pause check before Claude Code execution
+  if (executionId && await isPaused(executionId)) {
+    logger.info({ executionId, issueKey }, 'Workflow paused before code generation');
+    return { dispatched: false, workflowExecutionId: executionId };
+  }
 
   const mcpServers = buildMcpServers({ env, allowedServices: ['GITHUB', 'JIRA'] });
   const allowedTools = buildAllowedTools(['GITHUB', 'JIRA']);
