@@ -209,7 +209,16 @@ Step 3: 도입 계획
 | [infrastructure/openclaw/SETUP.md](../infrastructure/openclaw/SETUP.md)   | 개발자 | Slack App 설정    | ⭐⭐   |
 | [infrastructure/openclaw/README.md](../infrastructure/openclaw/README.md) | 개발자 | 설정 커스터마이징 | ⭐     |
 
-### 6. 기술 참고
+### 6. 배포 및 운영 (Deployment)
+
+| 문서                                                                                      | 대상      | 설명                              | 중요도 |
+| ----------------------------------------------------------------------------------------- | --------- | --------------------------------- | ------ |
+| [deployment/DEPLOYMENT_ARCHITECTURE.md](./deployment/DEPLOYMENT_ARCHITECTURE.md)         | DevOps    | 전체 AWS 배포 구조 (멀티 계정)    | ⭐⭐⭐ |
+| [deployment/PREVIEW_ENVIRONMENT.md](./deployment/PREVIEW_ENVIRONMENT.md)                 | 개발자    | Preview 환경 설계 (Local↔K8s)    | ⭐⭐⭐ |
+| [deployment/MULTI_ACCOUNT_AWS.md](./deployment/MULTI_ACCOUNT_AWS.md)                     | DevOps    | IAM 크로스 계정·IRSA·EKS RBAC    | ⭐⭐   |
+| [deployment/OPERATIONS.md](./deployment/OPERATIONS.md)                                   | DevOps    | 운영·모니터링·장애 처리           | ⭐⭐   |
+
+### 7. 기술 참고
 
 | 문서                                                       | 대상   | 설명            | 중요도 |
 | ---------------------------------------------------------- | ------ | --------------- | ------ |
@@ -324,6 +333,7 @@ infrastructure/
 
 ## 📝 문서 업데이트 이력
 
+- **2026-02-18**: Deployment 문서 4개 추가 (배포 아키텍처·Preview 환경·멀티 계정 AWS·운영 가이드)
 - **2026-02-12**: 개념 설명서 (CONCEPTS.md) 추가, README 개선, 문서 인덱스 생성
 - **2026-02-11**: Architecture 문서 11개 완성, 7-Agent 정의 완료
 - **2026-02-10**: Team AI Coordinator 설계 9개 완료
