@@ -46,6 +46,8 @@ tags:
     description: Current user information
   - name: Auth Service — Credentials
     description: User credential (API key / OAuth) management
+  - name: Webhook Listener — Workflow Control
+    description: Pause and resume running workflow executions
 
 paths:
   # ──────────────────────────────────────────────
@@ -211,6 +213,103 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workflows/{id}/pause:
+    post:
+      tags:
+        - Webhook Listener — Workflow Control
+      summary: Pause a running workflow
+      description: |
+        Sets a workflow execution's status to `PAUSED`. The workflow engine checks
+        this status at step boundaries (`isPaused()`) and stops execution at the next
+        checkpoint. Cannot pause workflows already in a terminal state (`COMPLETED`, `FAILED`).
+
+        The `:id` parameter accepts either an internal workflow ID (e.g. `wf-abc12345`)
+        or a Jira issue key (e.g. `PROJ-123`).
+      operationId: pauseWorkflow
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Workflow execution ID or Jira issue key
+          schema:
+            type: string
+            example: wf-abc12345
+      responses:
+        '200':
+          description: Workflow successfully paused
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowControlResponse'
+        '400':
+          description: Workflow is already in a terminal state (COMPLETED or FAILED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'Cannot pause workflow in terminal state: COMPLETED'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/workflows/{id}/resume:
+    post:
+      tags:
+        - Webhook Listener — Workflow Control
+      summary: Resume a paused workflow
+      description: |
+        Restores a `PAUSED` workflow execution to `IN_PROGRESS` status.
+        The workflow engine will pick up the job on the next BullMQ retry cycle.
+        Only workflows with `PAUSED` status can be resumed.
+
+        The `:id` parameter accepts either an internal workflow ID or a Jira issue key.
+      operationId: resumeWorkflow
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Workflow execution ID or Jira issue key
+          schema:
+            type: string
+            example: wf-abc12345
+      responses:
+        '200':
+          description: Workflow successfully resumed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowControlResponse'
+        '400':
+          description: Workflow is not in PAUSED state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'Workflow is not paused (current status: IN_PROGRESS)'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -963,6 +1062,27 @@ components:
           type: string
           format: date-time
           description: When the credential was created
+
+    # ── Workflow Control ────────────────────────
+    WorkflowControlResponse:
+      type: object
+      required:
+        - success
+        - id
+        - status
+      properties:
+        success:
+          type: boolean
+          example: true
+        id:
+          type: string
+          description: Internal workflow execution ID
+          example: wf-abc12345
+        status:
+          type: string
+          enum: [PAUSED, IN_PROGRESS]
+          description: New workflow status after the operation
+          example: PAUSED
 
     # ── Error Schemas ───────────────────────────
     ErrorResponse:

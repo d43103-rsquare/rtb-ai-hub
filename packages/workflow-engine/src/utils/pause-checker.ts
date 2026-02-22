@@ -32,6 +32,11 @@ export async function isPaused(executionId: string): Promise<boolean> {
  * Wait for resume signal by polling every `intervalMs`.
  * Resolves when workflow status changes from PAUSED to something else.
  * Times out after `timeoutMs` (default: 30 minutes).
+ *
+ * NOTE: Not currently used in jira-auto-dev.ts — the current pattern returns
+ * immediately when paused and relies on BullMQ job retry for resumption.
+ * This function is reserved for future long-running workflows that need
+ * in-process blocking wait behavior instead of job-level retry.
  */
 export async function waitForResume(
   executionId: string,

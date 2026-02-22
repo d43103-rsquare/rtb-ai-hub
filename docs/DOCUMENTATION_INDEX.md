@@ -218,6 +218,25 @@ Step 3: 도입 계획
 | [KNOWN_ISSUES.md](./KNOWN_ISSUES.md)                       | 개발자 | 알려진 이슈     | ⭐     |
 | [WAVE_PARALLEL_EXECUTION.md](./WAVE_PARALLEL_EXECUTION.md) | 개발자 | Wave 병렬 실행  | ⭐     |
 
+### 7. Workflow Pause/Resume API
+
+진행 중인 워크플로우를 일시정지하고 재개하는 REST API 및 내부 유틸리티.
+
+| 항목                                                                                                              | 설명                                                    |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `POST /api/workflows/:id/pause`                                                                                   | 진행 중인 워크플로우 일시정지 (상태: PAUSED)            |
+| `POST /api/workflows/:id/resume`                                                                                  | 일시정지된 워크플로우 재개 (상태: IN_PROGRESS 복원)     |
+| [`packages/workflow-engine/src/utils/pause-checker.ts`](../packages/workflow-engine/src/utils/pause-checker.ts) | `isPaused()` 유틸 — 단계 경계에서 호출하여 상태 확인   |
+
+**체크포인트** (jira-auto-dev 워크플로우):
+
+1. Design Debate 시작 전 — `isPaused()` 호출, PAUSED이면 즉시 리턴
+2. Claude Code 실행 전 — `isPaused()` 호출, PAUSED이면 즉시 리턴
+
+**동작 방식**: pause 요청이 들어오면 DB의 `workflow_executions.status`를 `PAUSED`로 변경. 워크플로우 엔진은 다음 단계 경계에서 `isPaused(executionId)`를 확인하고, PAUSED이면 현재 잡을 종료. resume 요청 시 상태를 `IN_PROGRESS`로 복원하면 BullMQ 잡 재실행으로 워크플로우가 이어진다.
+
+**엔드포인트 인증**: `internalAuth` 미들웨어 적용 (내부 서비스 간 통신 전용).
+
 ---
 
 ## 🔍 주제별 찾아보기
@@ -324,6 +343,7 @@ infrastructure/
 
 ## 📝 문서 업데이트 이력
 
+- **2026-02-22**: Pause/Resume API 문서 추가 (섹션 7), openapi.yaml 엔드포인트 스펙 추가
 - **2026-02-12**: 개념 설명서 (CONCEPTS.md) 추가, README 개선, 문서 인덱스 생성
 - **2026-02-11**: Architecture 문서 11개 완성, 7-Agent 정의 완료
 - **2026-02-10**: Team AI Coordinator 설계 9개 완료
