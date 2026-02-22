@@ -36,13 +36,14 @@ import { createDebateStore } from '../debate/debate-store';
 import { createPolicyEngine } from '../harness/policy-engine';
 import { buildClaudeMd } from '../claude-code/context-builder';
 import { buildMcpServers, buildAllowedTools } from '../claude-code/mcp-config-builder';
-import { executeWithGateRetry } from '../claude-code/executor';
+import { executeClaudeCode, executeWithGateRetry } from '../claude-code/executor';
 import { parseAndValidate } from '../claude-code/result-parser';
 import { createWorktreeManager } from '../worktree/manager';
 import { createWorktreeRegistry } from '../worktree/registry';
 import { WikiKnowledge } from '../utils/wiki-knowledge';
 import { findDecisionsByJiraKey } from '../utils/decision-store';
 import { createTaskFolder } from '../utils/task-folder';
+import { buildOpsVerificationPrompt, parseOpsVerificationResult } from '../utils/ops-verifier';
 
 const logger = createLogger('jira-auto-dev-workflow');
 
@@ -282,6 +283,58 @@ export async function processJiraAutoDev(
       error: codeResult.error || 'Gates failed after max retries',
     });
     return { dispatched: false, workflowExecutionId: executionId };
+  }
+
+  // ─── Step 8.5: Ops Verification ──────────────────────────────────────────
+
+  const opsVerificationEnabled = process.env.OPS_VERIFICATION_ENABLED === 'true';
+  if (opsVerificationEnabled && workDir) {
+    try {
+      const opsPrompt = buildOpsVerificationPrompt(issueKey, env);
+      const opsAllowedTools = buildAllowedTools([]);
+      // Allow rtb-connections MCP tools for ops verification
+      const opsExtendedTools = [
+        ...opsAllowedTools,
+        'mcp__rtb-connections__query_db',
+        'mcp__rtb-connections__run_aws_cli',
+        'mcp__rtb-connections__check_db_connection',
+        'mcp__rtb-connections__check_aws_connection',
+      ];
+
+      const opsTask: ClaudeCodeTask = {
+        id: generateId('ops-task'),
+        debateSessionId: debateSession.id,
+        worktreePath: workDir,
+        prompt: opsPrompt,
+        claudeMdContent: `# Ops Verification Task\n\nVerify ${env} environment readiness for ${issueKey}.`,
+        mcpServers: buildMcpServers({ env, allowedServices: ['RTC'] }),
+        allowedTools: opsExtendedTools,
+        maxTurns: 10,
+        timeoutMs: 120000,
+      };
+
+      const opsCodeResult = await executeClaudeCode(opsTask);
+      const opsResult = parseOpsVerificationResult(opsCodeResult.output || '');
+
+      logger.info(
+        { issueKey, env, passed: opsResult.passed, checks: opsResult.checks.length },
+        'Ops verification completed'
+      );
+
+      if (!opsResult.passed && env === 'prd') {
+        logger.error({ issueKey, opsResult }, 'Ops verification FAILED — blocking prd deployment');
+        await updateWorkflowStatus(executionId, WorkflowStatus.FAILED, {
+          error: `Ops verification failed: ${opsResult.summary}`,
+          opsVerification: opsResult,
+        });
+        return { dispatched: false, workflowExecutionId: executionId };
+      }
+    } catch (opsError) {
+      logger.warn(
+        { error: opsError instanceof Error ? opsError.message : String(opsError) },
+        'Ops verification error — continuing (non-prd)'
+      );
+    }
   }
 
   // ─── Step 8: Push + PR ────────────────────────────────────────────────────

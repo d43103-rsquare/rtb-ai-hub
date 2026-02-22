@@ -245,7 +245,7 @@ Step 3: 도입 계획
 **관련 코드**:
 - `packages/workflow-engine/src/utils/task-folder.ts` — Jira 이슈별 `docs/plans/{key}/` 폴더 자동 생성
 - `packages/shared/src/types.ts` — `WorkflowStage` enum (9단계 상태머신: analyse→design→await-design-approval→develop→review→test→ops→await-ops-approval→done)
-- `packages/workflow-engine/src/utils/ops-verifier.ts` — Ops 검증 (DB/AWS)
+- `packages/workflow-engine/src/utils/ops-verifier.ts` — 배포 전 DB 마이그레이션·ECS·CloudWatch·연결성 검증 (활성화: `OPS_VERIFICATION_ENABLED=true`, prd 환경 실패 시 자동 차단)
 - `packages/workflow-engine/src/utils/pause-checker.ts` — `/pause` 일시정지 체크
 - `packages/webhook-listener/src/routes/workflows.ts` — `POST /api/workflows/:id/pause|resume`
 
