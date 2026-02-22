@@ -112,3 +112,9 @@ Defined in `packages/shared/src/constants.ts` as `FEATURE_FLAGS`. Key flags: `DE
 - **Database**: Drizzle ORM with PostgreSQL. Schema in shared package, migrations via drizzle-kit.
 - **Queue**: BullMQ with Redis. Queue names defined in `QUEUE_NAMES` constant. Jobs include `env` field for environment routing.
 - **MCP integration**: Native SDK connections (no Docker containers). Endpoints configured in `NATIVE_MCP_ENDPOINTS`. Tokens loaded via `getNativeMcpToken(service, env)`.
+
+## Tool Priority (도구 우선순위)
+
+- AWS CLI 명령 실행 시 반드시 `mcp__rtb-connections__run_aws_cli` 도구를 사용할 것
+- DB 쿼리 실행 시 반드시 `mcp__rtb-connections__query_db` 도구를 사용할 것
+- 일반 Bash로 aws 명령어를 직접 실행하지 말 것
