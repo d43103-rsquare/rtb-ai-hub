@@ -4,13 +4,15 @@ import { createLogger } from '@rtb-ai-hub/shared';
 
 const logger = createLogger('task-folder');
 
-const STAGE_FILES: Record<string, string> = {
+const STAGE_FILES = {
   analysis: '01-analysis.md',
   design: '02-design.md',
   review: '03-review.md',
   test: '04-test.md',
   memory: '99-memory.md',
-};
+} as const;
+
+type StageName = keyof typeof STAGE_FILES;
 
 export async function createTaskFolder(
   issueKey: string,
@@ -36,13 +38,13 @@ export async function createTaskFolder(
 
 export async function writeStageArtifact(
   issueKey: string,
-  stage: keyof typeof STAGE_FILES,
+  stage: StageName,
   content: string,
   basePath?: string
 ): Promise<void> {
   const base = basePath || process.cwd();
   const folderPath = path.join(base, 'docs', 'plans', issueKey);
-  const fileName = STAGE_FILES[stage] || `${stage}.md`;
+  const fileName = STAGE_FILES[stage];
   const filePath = path.join(folderPath, fileName);
 
   await fs.writeFile(filePath, content, 'utf-8');

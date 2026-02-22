@@ -85,7 +85,7 @@ export async function processJiraAutoDev(
 
   try {
     await createTaskFolder(issueKey, summary);
-    logger.info({ issueKey }, 'Task folder initialized at docs/plans/' + issueKey);
+    logger.info({ issueKey, path: `docs/plans/${issueKey}` }, 'Task folder initialized');
   } catch (folderError) {
     logger.warn(
       { error: folderError instanceof Error ? folderError.message : String(folderError) },

@@ -89,6 +89,9 @@ ${input.projectStructure}`);
   // Implementation Instructions
   sections.push(buildInstructionsSection(input.env));
 
+  // Memory & Learning
+  sections.push(buildMemorySection());
+
   logger.info(
     {
       jiraKey: input.context.jiraKey,
@@ -187,9 +190,11 @@ ${envRules.join('\n')}
 3. 단위 테스트
 4. 빌드 검증
 
-모든 게이트를 통과해야 PR이 생성됩니다.
+모든 게이트를 통과해야 PR이 생성됩니다.`;
+}
 
-## Memory & Learning
+function buildMemorySection(): string {
+  return `## Memory & Learning
 
 After completing each significant decision or implementation step:
 1. Use \`mcp__plugin_claude-mem_mcp-search__save_memory\` to persist key learnings
