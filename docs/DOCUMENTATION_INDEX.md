@@ -227,6 +227,11 @@ Step 3: 도입 계획
 | [KNOWN_ISSUES.md](./KNOWN_ISSUES.md)                       | 개발자 | 알려진 이슈     | ⭐     |
 | [WAVE_PARALLEL_EXECUTION.md](./WAVE_PARALLEL_EXECUTION.md) | 개발자 | Wave 병렬 실행  | ⭐     |
 
+### WorkflowStage 상태머신
+
+- `packages/shared/src/types.ts` — `WorkflowStage` enum: analyse→design→await-design-approval→develop→review→test→ops→await-ops-approval→done
+- `packages/workflow-engine/src/utils/task-folder.ts` — Jira 이슈별 docs/plans/{issueKey}/ 폴더 자동 생성
+
 ---
 
 ## 🔍 주제별 찾아보기
