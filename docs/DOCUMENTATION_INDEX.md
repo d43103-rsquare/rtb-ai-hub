@@ -218,6 +218,12 @@ Step 3: 도입 계획
 | [KNOWN_ISSUES.md](./KNOWN_ISSUES.md)                       | 개발자 | 알려진 이슈     | ⭐     |
 | [WAVE_PARALLEL_EXECUTION.md](./WAVE_PARALLEL_EXECUTION.md) | 개발자 | Wave 병렬 실행  | ⭐     |
 
+### Ops 에이전트 (DB/AWS 검증)
+
+- `packages/workflow-engine/src/utils/ops-verifier.ts` — 배포 전 DB 마이그레이션·ECS·CloudWatch·연결성 검증
+- 활성화: `OPS_VERIFICATION_ENABLED=true` 환경변수
+- prd 환경에서 검증 실패 시 배포 자동 차단
+
 ---
 
 ## 🔍 주제별 찾아보기
