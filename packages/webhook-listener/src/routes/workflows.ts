@@ -335,6 +335,80 @@ export function createWorkflowsRouter() {
     }
   });
 
+  router.post('/api/workflows/:id/pause', internalAuth, async (req, res) => {
+    const { id } = req.params;
+    try {
+      const result = await queryRaw<{ id: string; status: string }>(
+        'SELECT id, status FROM workflow_executions WHERE id = $1 OR jira_key = $1 LIMIT 1',
+        [id]
+      );
+
+      if (result.length === 0) {
+        res.status(404).json({ error: `Workflow ${id} not found` });
+        return;
+      }
+
+      const wf = result[0];
+      if (wf.status === 'COMPLETED' || wf.status === 'FAILED') {
+        res.status(400).json({ error: `Cannot pause workflow in terminal state: ${wf.status}` });
+        return;
+      }
+
+      await queryRaw(
+        `UPDATE workflow_executions
+         SET status = 'PAUSED', updated_at = NOW()
+         WHERE id = $1`,
+        [wf.id]
+      );
+
+      logger.info({ id: wf.id }, 'Workflow paused by user request');
+      res.json({ success: true, id: wf.id, status: 'PAUSED' });
+    } catch (error) {
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error), id },
+        'Failed to pause workflow'
+      );
+      res.status(500).json({ error: 'Failed to pause workflow' });
+    }
+  });
+
+  router.post('/api/workflows/:id/resume', internalAuth, async (req, res) => {
+    const { id } = req.params;
+    try {
+      const result = await queryRaw<{ id: string; status: string }>(
+        'SELECT id, status FROM workflow_executions WHERE id = $1 OR jira_key = $1 LIMIT 1',
+        [id]
+      );
+
+      if (result.length === 0) {
+        res.status(404).json({ error: `Workflow ${id} not found` });
+        return;
+      }
+
+      const wf = result[0];
+      if (wf.status !== 'PAUSED') {
+        res.status(400).json({ error: `Workflow is not paused (current status: ${wf.status})` });
+        return;
+      }
+
+      await queryRaw(
+        `UPDATE workflow_executions
+         SET status = 'IN_PROGRESS', updated_at = NOW()
+         WHERE id = $1`,
+        [wf.id]
+      );
+
+      logger.info({ id: wf.id }, 'Workflow resumed by user request');
+      res.json({ success: true, id: wf.id, status: 'IN_PROGRESS' });
+    } catch (error) {
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error), id },
+        'Failed to resume workflow'
+      );
+      res.status(500).json({ error: 'Failed to resume workflow' });
+    }
+  });
+
   router.post('/api/workflows/:id/verify', async (req, res) => {
     const { id } = req.params;
 
