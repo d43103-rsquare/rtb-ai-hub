@@ -243,7 +243,7 @@ Step 3: 도입 계획
 - 세션 학습은 `mcp__plugin_claude-mem_mcp-search__save_memory`로 누적
 
 **관련 코드**:
-- `packages/workflow-engine/src/utils/task-folder.ts` — Jira 이슈별 `docs/plans/{key}/` 폴더 자동 생성
+- `packages/workflow-engine/src/utils/task-folder.ts` — Jira 이슈별 `docs/plans/{key}/` 폴더 자동 생성 ([산출물 구조 안내](./plans/README.md))
 - `packages/shared/src/types.ts` — `WorkflowStage` enum (9단계 상태머신: analyse→design→await-design-approval→develop→review→test→ops→await-ops-approval→done)
 - `packages/workflow-engine/src/utils/ops-verifier.ts` — 배포 전 DB 마이그레이션·ECS·CloudWatch·연결성 검증 (활성화: `OPS_VERIFICATION_ENABLED=true`, prd 환경 실패 시 자동 차단)
 - `packages/workflow-engine/src/utils/pause-checker.ts` — `/pause` 일시정지 체크
@@ -374,7 +374,7 @@ infrastructure/
 
 ## 📝 문서 업데이트 이력
 
-- **2026-02-22**: Pause/Resume API 문서 추가 (섹션 9), openapi.yaml 엔드포인트 스펙 추가
+- **2026-02-22**: 4개 feature 브랜치 머지 — workflow-gaps(WorkflowStage·task-folder), agent-team-skill(/agent-team 커맨드), ops-agent(Ops 검증 Step 8.5), pause-mechanism(Pause/Resume API 섹션 9)
 - **2026-02-18**: Deployment 문서 4개 추가 (배포 아키텍처·Preview 환경·멀티 계정 AWS·운영 가이드)
 - **2026-02-12**: 개념 설명서 (CONCEPTS.md) 추가, README 개선, 문서 인덱스 생성
 - **2026-02-11**: Architecture 문서 11개 완성, 7-Agent 정의 완료
