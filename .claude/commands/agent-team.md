@@ -12,23 +12,21 @@ AI 에이전트 팀을 조율하여 Jira 이슈를 분석부터 배포까지 자
 ## 워크플로우 상태머신
 
 ```
-[Analyse] → [Design] →(승인)→ [Develop] → [Review+Test 병렬] → [Ops] →(승인)→ [Done]
+[Analyse] -> [Design] --(승인)--> [Develop] -> [Review+Test 병렬] -> [Ops] --(승인)--> [Done]
 ```
 
-에이전트 의견 충돌 시 자동 에스컬레이션 → 사람 개입.
+에이전트 의견 충돌 시 자동 에스컬레이션 -> 사람 개입.
 
 ---
 
 ## Step 1: Task 초기화
 
-```bash
-TASK_ID="$ARGUMENTS"
-TASK_DIR="docs/plans/$TASK_ID"
-mkdir -p "$TASK_DIR"
-cat > "$TASK_DIR/00-brief.md" << EOF
-# Task: $TASK_ID
+`docs/plans/$ARGUMENTS/` 디렉토리와 아래 내용의 `00-brief.md`를 생성합니다.
 
-**Created**: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+```
+# Task: $ARGUMENTS
+
+**Created**: {현재 ISO 시각}
 
 ## Summary
 
@@ -42,8 +40,6 @@ _이슈 요약 (Analyse 단계에서 채워짐)_
 - [ ] Review + Test (병렬)
 - [ ] Ops (승인 필요)
 - [ ] Done
-EOF
-echo "Task folder created: $TASK_DIR"
 ```
 
 ---
@@ -53,12 +49,7 @@ echo "Task folder created: $TASK_DIR"
 compound-engineering:research:repo-research-analyst 및 learnings-researcher 에이전트로:
 - 이슈 관련 코드베이스 분석
 - 과거 유사 결정 검색 (claude-mem + decision_journal)
-- 산출물 → `docs/plans/$TASK_ID/01-analysis.md`
-
-```
-Task("Analyse $ARGUMENTS", subagent_type="compound-engineering:research:repo-research-analyst")
-Task("Search past decisions for $ARGUMENTS", subagent_type="compound-engineering:research:learnings-researcher")
-```
+- 산출물 -> `docs/plans/$ARGUMENTS/01-analysis.md`
 
 두 에이전트를 병렬로 실행하고 결과를 01-analysis.md로 병합.
 
@@ -69,9 +60,9 @@ Task("Search past decisions for $ARGUMENTS", subagent_type="compound-engineering
 compound-engineering:design:code-architect 에이전트로:
 - 설계 문서 작성
 - 트레이드오프 분석
-- 산출물 → `docs/plans/$TASK_ID/02-design.md`
+- 산출물 -> `docs/plans/$ARGUMENTS/02-design.md`
 
-**⛔ 설계 승인 체크포인트**
+**[설계 승인 체크포인트]**
 
 설계 문서를 사용자에게 보여주고 명시적 승인을 받습니다.
 승인 없이 Develop 단계로 진행하지 않습니다.
@@ -94,11 +85,11 @@ compound-engineering:design:code-architect 에이전트로:
 - compound-engineering:review:code-reviewer
 - compound-engineering:review:security-sentinel
 - compound-engineering:review:performance-oracle
-- 산출물 → `docs/plans/$TASK_ID/03-review.md`
+- 산출물 -> `docs/plans/$ARGUMENTS/03-review.md`
 
 **Test**:
 - `pnpm test && pnpm test:integration` 실행
-- 산출물 → `docs/plans/$TASK_ID/04-test.md`
+- 산출물 -> `docs/plans/$ARGUMENTS/04-test.md`
 
 ---
 
@@ -109,21 +100,18 @@ compound-engineering:design:code-architect 에이전트로:
 - AWS 리소스 상태 확인
 - 배포 준비 체크리스트
 
-**⛔ 배포 전 승인 체크포인트**
+**[배포 전 승인 체크포인트]**
 
-운영 검증 결과를 보여주고 배포 승인을 받습니다.
+운영 검증 결과를 사용자에게 보여주고 배포 승인을 받습니다.
 
 ---
 
 ## Step 7: [Done] — 완료
 
-```bash
-# PR 생성 or 머지
-# 학습 저장
-cat > "docs/plans/$TASK_ID/99-memory.md" << EOF
-# Learnings: $TASK_ID
+PR 생성 후 아래 내용으로 `docs/plans/$ARGUMENTS/99-memory.md`를 작성합니다.
 
-$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+```
+# Learnings: $ARGUMENTS
 
 ## 핵심 결정
 
@@ -132,7 +120,6 @@ _이 이슈에서 내린 주요 기술 결정_
 ## 다음에 활용할 점
 
 _향후 유사 작업 시 참고할 인사이트_
-EOF
 ```
 
 `mcp__plugin_claude-mem_mcp-search__save_memory`로 99-memory.md 내용을 세션 간 누적.

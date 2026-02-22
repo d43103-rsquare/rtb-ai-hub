@@ -218,6 +218,28 @@ Step 3: 도입 계획
 | [KNOWN_ISSUES.md](./KNOWN_ISSUES.md)                       | 개발자 | 알려진 이슈     | ⭐     |
 | [WAVE_PARALLEL_EXECUTION.md](./WAVE_PARALLEL_EXECUTION.md) | 개발자 | Wave 병렬 실행  | ⭐     |
 
+### 7. Claude Code 커맨드 & 에이전트 팀
+
+#### /agent-team 오케스트레이터 커맨드
+
+`.claude/commands/agent-team.md`에 정의된 AI 에이전트 팀 오케스트레이터 슬래시 커맨드.
+
+**사용법**: `/agent-team RTB-123`
+
+**워크플로우**: Analyse -> Design (승인) -> Develop -> Review+Test -> Ops (승인) -> Done
+
+- 설계 완료 후 사람 승인 체크포인트
+- 배포 전 Ops 검증 + 사람 승인 체크포인트
+- 에이전트 의견 충돌 시 자동 에스컬레이션
+- 세션 학습은 `mcp__plugin_claude-mem_mcp-search__save_memory`로 누적
+
+**관련 코드**:
+- `packages/workflow-engine/src/utils/task-folder.ts` — Jira 이슈별 `docs/plans/{key}/` 폴더 자동 생성
+- `packages/shared/src/types.ts` — `WorkflowStage` enum (9단계 상태머신)
+- `packages/workflow-engine/src/utils/ops-verifier.ts` — Ops 검증 (DB/AWS)
+- `packages/workflow-engine/src/utils/pause-checker.ts` — `/pause` 일시정지 체크
+- `packages/webhook-listener/src/routes/workflows.ts` — `POST /api/workflows/:id/pause|resume`
+
 ---
 
 ## 🔍 주제별 찾아보기
