@@ -42,6 +42,7 @@ import { createWorktreeManager } from '../worktree/manager';
 import { createWorktreeRegistry } from '../worktree/registry';
 import { WikiKnowledge } from '../utils/wiki-knowledge';
 import { findDecisionsByJiraKey } from '../utils/decision-store';
+import { createTaskFolder } from '../utils/task-folder';
 
 const logger = createLogger('jira-auto-dev-workflow');
 
@@ -77,6 +78,18 @@ export async function processJiraAutoDev(
     logger.warn(
       { error: dbError instanceof Error ? dbError.message : String(dbError) },
       'Failed to save workflow execution — continuing'
+    );
+  }
+
+  // ─── Step 1b: Initialize Task Folder ─────────────────────────────────────
+
+  try {
+    await createTaskFolder(issueKey, summary);
+    logger.info({ issueKey }, 'Task folder initialized at docs/plans/' + issueKey);
+  } catch (folderError) {
+    logger.warn(
+      { error: folderError instanceof Error ? folderError.message : String(folderError) },
+      'Failed to create task folder — continuing'
     );
   }
 

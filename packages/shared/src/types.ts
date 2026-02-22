@@ -94,10 +94,23 @@ export enum WorkflowStatus {
   FAILED = 'failed',
 }
 
+export enum WorkflowStage {
+  ANALYSE = 'analyse',
+  DESIGN = 'design',
+  AWAIT_DESIGN_APPROVAL = 'await-design-approval',
+  DEVELOP = 'develop',
+  REVIEW = 'review',
+  TEST = 'test',
+  OPS = 'ops',
+  AWAIT_OPS_APPROVAL = 'await-ops-approval',
+  DONE = 'done',
+}
+
 export type WorkflowExecution = {
   id: string;
   type: WorkflowType;
   status: WorkflowStatus;
+  stage?: WorkflowStage;
   input: WebhookEvent;
   output?: any;
   error?: string;
