@@ -1,7 +1,6 @@
 import { Router } from 'express';
-import { Queue } from 'bullmq';
 import {
-  QUEUE_NAMES as _QUEUE_NAMES,
+  QUEUE_NAMES,
   generateId,
   datadogWebhookSchema,
   validateBody,
@@ -11,8 +10,9 @@ import {
 import type { DatadogWebhookEvent, Environment } from '@rtb-ai-hub/shared';
 import { optionalAuth, AuthRequest } from '../middleware/auth';
 import { verifyDatadogSignature } from '../middleware/webhook-signature';
+import { enqueueJob } from '../queue-client';
 
-export function createDatadogRouter(datadogQueue: Queue) {
+export function createDatadogRouter() {
   const router = Router();
 
   router.post(
@@ -40,16 +40,15 @@ export function createDatadogRouter(datadogQueue: Queue) {
           payload: req.body,
         };
 
-        await datadogQueue.add(
-          'datadog-event',
+        const jobId = generateId('datadog');
+        await enqueueJob(
+          QUEUE_NAMES.DATADOG,
           {
             event,
             userId: req.user?.userId || null,
             env,
           },
-          {
-            jobId: generateId('datadog'),
-          }
+          jobId
         );
 
         res.status(202).json({ status: 'accepted', eventId: event.alertId });

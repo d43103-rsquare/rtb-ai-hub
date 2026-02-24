@@ -4,13 +4,12 @@ import helmet from 'helmet';
 import path from 'path';
 import fs from 'fs';
 import { pinoHttp } from 'pino-http';
-import { Queue } from 'bullmq';
-import Redis from 'ioredis';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
-import { createLogger, QUEUE_NAMES, requireEnv, FEATURE_FLAGS } from '@rtb-ai-hub/shared';
+import { createLogger, FEATURE_FLAGS } from '@rtb-ai-hub/shared';
 import { createRoutes } from './routes';
 import { healthRateLimit, webhookRateLimit } from './middleware/rate-limit';
+import { getQueueClient, stopQueueClient } from './queue-client';
 
 const WORKFLOW_ENGINE_DIR = path.resolve(__dirname, '../../workflow-engine/dist');
 
@@ -22,17 +21,6 @@ const logger = createLogger('rtb-hub');
 const app = express();
 const port = process.env.WEBHOOK_PORT || 4000;
 const server = createServer(app);
-
-const redisConnection = new Redis({
-  host: requireEnv('REDIS_HOST'),
-  port: parseInt(requireEnv('REDIS_PORT')),
-  maxRetriesPerRequest: null,
-});
-
-const figmaQueue = new Queue(QUEUE_NAMES.FIGMA, { connection: redisConnection });
-const jiraQueue = new Queue(QUEUE_NAMES.JIRA, { connection: redisConnection });
-const githubQueue = new Queue(QUEUE_NAMES.GITHUB, { connection: redisConnection });
-const datadogQueue = new Queue(QUEUE_NAMES.DATADOG, { connection: redisConnection });
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(
@@ -79,7 +67,7 @@ app.get('/health', healthRateLimit, async (_req, res) => {
 
 app.use(
   webhookRateLimit,
-  createRoutes({ figmaQueue, jiraQueue, githubQueue, datadogQueue, redis: redisConnection })
+  createRoutes()
 );
 
 async function mountWorkflowEngineApi() {
@@ -183,6 +171,10 @@ async function main() {
   const enableWorkflow = process.env.ENABLE_WORKFLOW_ENGINE !== 'false';
   const enableDashboard = process.env.ENABLE_DASHBOARD !== 'false';
 
+  // Initialize pg-boss queue client
+  await getQueueClient();
+  logger.info('pg-boss queue client initialized');
+
   let workers: any = null;
 
   if (enableWorkflow) {
@@ -216,6 +208,7 @@ async function main() {
       }
     }
 
+    await stopQueueClient();
     server.close();
     process.exit(0);
   });

@@ -1,13 +1,12 @@
 import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
-import type Redis from 'ioredis';
 import { createLogger } from '@rtb-ai-hub/shared';
 import { chatTools, handleToolCall } from '../utils/chat-tools';
 import { optionalAuth, type AuthRequest } from '../middleware/auth';
 
 const logger = createLogger('chat-api');
 
-export function createChatRouter(redis: Redis) {
+export function createChatRouter() {
   const router = Router();
 
   router.post('/api/chat', optionalAuth, async (req: AuthRequest, res) => {
@@ -82,8 +81,7 @@ Always be concise and helpful. Format responses in markdown when appropriate.`;
         for (const toolUse of toolUseBlocks) {
           const result = await handleToolCall(
             toolUse.name,
-            toolUse.input as Record<string, unknown>,
-            redis
+            toolUse.input as Record<string, unknown>
           );
           toolResults.push({
             type: 'tool_result',

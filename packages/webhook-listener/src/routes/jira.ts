@@ -1,7 +1,6 @@
 import { Router } from 'express';
-import { Queue } from 'bullmq';
 import {
-  QUEUE_NAMES as _QUEUE_NAMES,
+  QUEUE_NAMES,
   generateId,
   jiraWebhookSchema,
   validateBody,
@@ -11,8 +10,9 @@ import {
 import type { JiraWebhookEvent, Environment } from '@rtb-ai-hub/shared';
 import { optionalAuth, AuthRequest } from '../middleware/auth';
 import { verifyJiraSignature } from '../middleware/webhook-signature';
+import { enqueueJob } from '../queue-client';
 
-export function createJiraRouter(jiraQueue: Queue) {
+export function createJiraRouter() {
   const router = Router();
 
   router.post(
@@ -56,16 +56,15 @@ export function createJiraRouter(jiraQueue: Queue) {
           payload: req.body,
         };
 
-        await jiraQueue.add(
-          'jira-event',
+        const jobId = generateId('jira');
+        await enqueueJob(
+          QUEUE_NAMES.JIRA,
           {
             event,
             userId: req.user?.userId || null,
             env,
           },
-          {
-            jobId: generateId('jira'),
-          }
+          jobId
         );
 
         res.status(202).json({ status: 'accepted', eventId: event.issueKey });

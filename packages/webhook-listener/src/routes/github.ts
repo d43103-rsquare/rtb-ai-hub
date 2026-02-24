@@ -1,7 +1,6 @@
 import { Router } from 'express';
-import { Queue } from 'bullmq';
 import {
-  QUEUE_NAMES as _QUEUE_NAMES,
+  QUEUE_NAMES,
   generateId,
   githubWebhookSchema,
   validateBody,
@@ -11,8 +10,9 @@ import {
 import type { GitHubWebhookEvent, Environment } from '@rtb-ai-hub/shared';
 import { optionalAuth, AuthRequest } from '../middleware/auth';
 import { verifyGitHubSignature } from '../middleware/webhook-signature';
+import { enqueueJob } from '../queue-client';
 
-export function createGitHubRouter(githubQueue: Queue) {
+export function createGitHubRouter() {
   const router = Router();
 
   router.post(
@@ -44,16 +44,15 @@ export function createGitHubRouter(githubQueue: Queue) {
           payload: req.body,
         };
 
-        await githubQueue.add(
-          'github-event',
+        const jobId = generateId('github');
+        await enqueueJob(
+          QUEUE_NAMES.GITHUB,
           {
             event,
             userId: req.user?.userId || null,
             env,
           },
-          {
-            jobId: generateId('github'),
-          }
+          jobId
         );
 
         res.status(202).json({ status: 'accepted', eventId: event.sha });

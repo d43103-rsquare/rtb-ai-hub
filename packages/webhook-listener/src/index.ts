@@ -2,29 +2,17 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
-import { Queue } from 'bullmq';
-import Redis from 'ioredis';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
-import { createLogger, QUEUE_NAMES, requireEnv } from '@rtb-ai-hub/shared';
+import { createLogger } from '@rtb-ai-hub/shared';
 import { createRoutes } from './routes';
 import { healthRateLimit, webhookRateLimit } from './middleware/rate-limit';
+import { getQueueClient, stopQueueClient } from './queue-client';
 
 const logger = createLogger('webhook-listener');
 const app = express();
 const port = process.env.WEBHOOK_PORT || 4000;
 const server = createServer(app);
-
-const redisConnection = new Redis({
-  host: requireEnv('REDIS_HOST'),
-  port: parseInt(requireEnv('REDIS_PORT')),
-  maxRetriesPerRequest: null,
-});
-
-const figmaQueue = new Queue(QUEUE_NAMES.FIGMA, { connection: redisConnection });
-const jiraQueue = new Queue(QUEUE_NAMES.JIRA, { connection: redisConnection });
-const githubQueue = new Queue(QUEUE_NAMES.GITHUB, { connection: redisConnection });
-const datadogQueue = new Queue(QUEUE_NAMES.DATADOG, { connection: redisConnection });
 
 app.use(helmet());
 app.use(
@@ -53,7 +41,7 @@ app.get('/health', healthRateLimit, (req, res) => {
 
 app.use(
   webhookRateLimit,
-  createRoutes({ figmaQueue, jiraQueue, githubQueue, datadogQueue, redis: redisConnection })
+  createRoutes()
 );
 
 const wss = new WebSocketServer({ server, path: '/ws' });
@@ -83,6 +71,23 @@ wss.on('connection', (ws) => {
   });
 });
 
-server.listen(port, () => {
-  logger.info(`Webhook listener running on port ${port} with WebSocket support`);
+async function main() {
+  await getQueueClient();
+  logger.info('pg-boss queue client initialized');
+
+  server.listen(port, () => {
+    logger.info(`Webhook listener running on port ${port} with WebSocket support`);
+  });
+
+  process.on('SIGTERM', async () => {
+    logger.info('SIGTERM received, shutting down...');
+    await stopQueueClient();
+    server.close();
+    process.exit(0);
+  });
+}
+
+main().catch((error) => {
+  logger.error({ error: error instanceof Error ? error.message : String(error) }, 'Startup failed');
+  process.exit(1);
 });
