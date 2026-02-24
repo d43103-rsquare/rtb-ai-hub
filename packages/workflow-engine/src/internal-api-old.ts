@@ -241,26 +241,20 @@ async function handleDeployPreview(
   }
 
   try {
-    const { createRedisConnection } = await import('./queue/connection');
     const { getPreviewManager } = await import('./utils/preview-manager');
 
-    const redis = createRedisConnection();
-    try {
-      const manager = getPreviewManager(redis);
-      const result = await manager.startPreview({ branchName, issueKey: jiraKey, env });
+    const manager = getPreviewManager();
+    const result = await manager.startPreview({ branchName, issueKey: jiraKey, env });
 
-      if (result.success) {
-        logger.info(
-          { branchName, jiraKey, preview: result.preview?.id },
-          'Internal API: preview started'
-        );
-        return { status: 200, data: result };
-      } else {
-        logger.error({ branchName, error: result.error }, 'Internal API: preview failed');
-        return { status: 500, data: result };
-      }
-    } finally {
-      await redis.quit().catch(() => {});
+    if (result.success) {
+      logger.info(
+        { branchName, jiraKey, preview: result.preview?.id },
+        'Internal API: preview started'
+      );
+      return { status: 200, data: result };
+    } else {
+      logger.error({ branchName, error: result.error }, 'Internal API: preview failed');
+      return { status: 500, data: result };
     }
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);

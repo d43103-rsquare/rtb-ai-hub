@@ -204,19 +204,12 @@ export async function processJiraAutoDev(
 
   // ─── Step 4: Create Worktree ──────────────────────────────────────────────
 
-  // Note: Redis connection should be injected; for now use a placeholder
   let worktreeManager: ReturnType<typeof createWorktreeManager> | null = null;
   let worktreeInfo: WorktreeInfo | undefined;
   try {
     // Attempt to create worktree — requires WORK_REPO_LOCAL_PATH
     if (process.env.WORK_REPO_LOCAL_PATH) {
-      const Redis = (await import('ioredis')).default;
-      const redis = new Redis({
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379'),
-        maxRetriesPerRequest: null,
-      });
-      const registry = createWorktreeRegistry(redis);
+      const registry = createWorktreeRegistry();
       worktreeManager = createWorktreeManager(registry);
 
       worktreeInfo = await worktreeManager.createWorktree(issueKey, summary, env, issueType);

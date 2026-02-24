@@ -1,17 +1,14 @@
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
-import { Queue } from 'bullmq';
 import {
   createLogger,
   generateId,
-  QUEUE_NAMES,
   loadPollingConfig,
-  type Environment,
   type PollingConfig,
   type TrackedBranch,
 } from '@rtb-ai-hub/shared';
 import type { GitHubWebhookEvent } from '@rtb-ai-hub/shared';
-import { createRedisConnection } from '../queue/connection';
+import { sendToGithubQueue } from '../queue/queues';
 
 const execAsync = promisify(exec);
 const logger = createLogger('branch-poller');
@@ -21,7 +18,6 @@ type BranchRef = { branch: string; sha: string };
 export class BranchPoller {
   private config: PollingConfig;
   private previousRefs = new Map<string, string>();
-  private queue: Queue | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private running = false;
 
@@ -40,9 +36,6 @@ export class BranchPoller {
       return;
     }
 
-    const connection = createRedisConnection();
-    this.queue = new Queue(QUEUE_NAMES.GITHUB, { connection });
-
     const initialRefs = await this.fetchAllRefs();
     for (const ref of initialRefs) {
       this.previousRefs.set(ref.branch, ref.sha);
@@ -60,10 +53,6 @@ export class BranchPoller {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
-    }
-    if (this.queue) {
-      await this.queue.close();
-      this.queue = null;
     }
     logger.info('Branch poller stopped');
   }
@@ -178,8 +167,6 @@ export class BranchPoller {
   }
 
   private async enqueuePushEvent(ref: BranchRef, tracked: TrackedBranch): Promise<void> {
-    if (!this.queue) return;
-
     const repoName = await this.getRepoName();
 
     const event: GitHubWebhookEvent = {
@@ -196,8 +183,7 @@ export class BranchPoller {
       },
     };
 
-    await this.queue.add(
-      'github-event',
+    await sendToGithubQueue(
       { event, userId: null, env: tracked.env },
       { jobId: generateId('poll') }
     );
