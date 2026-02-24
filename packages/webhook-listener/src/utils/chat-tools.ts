@@ -1,4 +1,3 @@
-import type Redis from 'ioredis';
 import { createLogger, queryRaw } from '@rtb-ai-hub/shared';
 
 const logger = createLogger('chat-tools');
@@ -90,18 +89,17 @@ export const chatTools = [
 
 export async function handleToolCall(
   toolName: string,
-  input: Record<string, unknown>,
-  redis: Redis
+  input: Record<string, unknown>
 ): Promise<Record<string, unknown>> {
   logger.info({ toolName, input }, 'Executing chat tool');
 
   try {
     switch (toolName) {
       case 'list_previews':
-        return handleListPreviews(redis);
+        return handleListPreviews();
 
       case 'get_preview':
-        return handleGetPreview(redis, input.issueKey as string);
+        return handleGetPreview(input.issueKey as string);
 
       case 'get_workflow_status':
         return handleGetWorkflowStatus(
@@ -110,7 +108,7 @@ export async function handleToolCall(
         );
 
       case 'get_system_info':
-        return handleGetSystemInfo(redis);
+        return handleGetSystemInfo();
 
       case 'get_issue_context':
         return handleGetIssueContext(input.jira_key as string);
@@ -128,39 +126,35 @@ export async function handleToolCall(
   }
 }
 
-async function handleListPreviews(redis: Redis): Promise<Record<string, unknown>> {
-  const ids = await redis.smembers('preview:active-list');
-  if (ids.length === 0) {
-    return { previews: [], message: 'No active preview environments' };
+async function handleListPreviews(): Promise<Record<string, unknown>> {
+  try {
+    const rows = await queryRaw(
+      "SELECT * FROM preview_instances WHERE status = 'active' ORDER BY created_at DESC"
+    );
+    return { previews: rows, count: rows.length };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.warn({ error: msg }, 'Failed to list previews from database');
+    return { previews: [], message: 'Preview query not yet wired to database' };
   }
-
-  const previews = [];
-  for (const id of ids) {
-    const raw = await redis.get(`preview:instance:${id}`);
-    if (raw) {
-      try {
-        previews.push(JSON.parse(raw));
-      } catch {
-        /* skip corrupted entries */
-      }
-    }
-  }
-
-  return { previews, count: previews.length };
 }
 
-async function handleGetPreview(redis: Redis, issueKey: string): Promise<Record<string, unknown>> {
-  const previewId = `prev_${issueKey}`;
-  const raw = await redis.get(`preview:instance:${previewId}`);
-
-  if (!raw) {
-    return { error: `No preview found for ${issueKey}` };
-  }
-
+async function handleGetPreview(issueKey: string): Promise<Record<string, unknown>> {
   try {
-    return { preview: JSON.parse(raw) };
-  } catch {
-    return { error: 'Failed to parse preview data' };
+    const rows = await queryRaw(
+      'SELECT * FROM preview_instances WHERE issue_key = $1 LIMIT 1',
+      [issueKey]
+    );
+
+    if (rows.length === 0) {
+      return { error: `No preview found for ${issueKey}` };
+    }
+
+    return { preview: rows[0] };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.warn({ error: msg, issueKey }, 'Failed to get preview from database');
+    return { error: `Failed to fetch preview: ${msg}` };
   }
 }
 
@@ -179,7 +173,7 @@ async function handleGetWorkflowStatus(
   };
 }
 
-async function handleGetSystemInfo(redis: Redis): Promise<Record<string, unknown>> {
+async function handleGetSystemInfo(): Promise<Record<string, unknown>> {
   const info: Record<string, unknown> = {
     service: 'RTB AI Hub',
     timestamp: new Date().toISOString(),
@@ -190,14 +184,8 @@ async function handleGetSystemInfo(redis: Redis): Promise<Record<string, unknown
       preview: process.env.PREVIEW_ENABLED === 'true',
       localPolling: process.env.LOCAL_POLLING_ENABLED === 'true' || process.env.DEV_MODE === 'true',
     },
+    queue: { type: 'pg-boss', backend: 'PostgreSQL' },
   };
-
-  try {
-    const pong = await redis.ping();
-    info.redis = { connected: pong === 'PONG' };
-  } catch {
-    info.redis = { connected: false };
-  }
 
   return info;
 }

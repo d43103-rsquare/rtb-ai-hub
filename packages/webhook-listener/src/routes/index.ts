@@ -1,6 +1,4 @@
 import { Router } from 'express';
-import { Queue } from 'bullmq';
-import type Redis from 'ioredis';
 import { createFigmaRouter } from './figma';
 import { createJiraRouter } from './jira';
 import { createGitHubRouter } from './github';
@@ -11,20 +9,14 @@ import { createContextRouter } from './context';
 import { createKnowledgeRouter } from './knowledge';
 import { createInfraRouter } from './infra';
 import { createWorkflowsRouter } from './workflows';
-export function createRoutes(queues: {
-  figmaQueue: Queue;
-  jiraQueue: Queue;
-  githubQueue: Queue;
-  datadogQueue: Queue;
-  redis: Redis;
-}) {
+export function createRoutes() {
   const router = Router();
 
-  router.use(createFigmaRouter(queues.figmaQueue));
-  router.use(createJiraRouter(queues.jiraQueue));
-  router.use(createGitHubRouter(queues.githubQueue));
-  router.use(createDatadogRouter(queues.datadogQueue));
-  router.use(createChatRouter(queues.redis));
+  router.use(createFigmaRouter());
+  router.use(createJiraRouter());
+  router.use(createGitHubRouter());
+  router.use(createDatadogRouter());
+  router.use(createChatRouter());
   router.use(createContextRouter());
 
   router.use(createKnowledgeRouter());

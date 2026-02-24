@@ -332,6 +332,53 @@ export const debateSessionsRelations = relations(debateSessions, ({ one }) => ({
 
 // ─── agent_model_config ──────────────────────────────────────────────────────
 
+// ─── preview_instances (was Redis KV) ─────────────────────────────────────────
+
+export const previewInstances = pgTable(
+  'preview_instances',
+  {
+    id: varchar('id', { length: 255 }).primaryKey(),
+    issueKey: varchar('issue_key', { length: 50 }).notNull(),
+    branchName: varchar('branch_name', { length: 200 }).notNull(),
+    env: varchar('env', { length: 10 }).notNull().default('int'),
+    status: varchar('status', { length: 20 }).notNull().default('starting'),
+    webPort: integer('web_port').notNull(),
+    apiPort: integer('api_port').notNull(),
+    dbName: varchar('db_name', { length: 100 }).notNull(),
+    worktreePath: varchar('worktree_path', { length: 500 }).notNull(),
+    webUrl: varchar('web_url', { length: 500 }).notNull(),
+    apiUrl: varchar('api_url', { length: 500 }).notNull(),
+    webPid: integer('web_pid'),
+    apiPid: integer('api_pid'),
+    error: text('error'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastAccessedAt: timestamp('last_accessed_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index('idx_preview_instances_issue_key').on(table.issueKey),
+    index('idx_preview_instances_status').on(table.status),
+    index('idx_preview_instances_expires_at').on(table.expiresAt),
+  ]
+);
+
+// ─── worktree_registry (was Redis KV) ─────────────────────────────────────────
+
+export const worktreeRegistry = pgTable(
+  'worktree_registry',
+  {
+    issueKey: varchar('issue_key', { length: 50 }).primaryKey(),
+    data: jsonb('data').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index('idx_worktree_registry_expires_at').on(table.expiresAt),
+  ]
+);
+
+// ─── agent_model_config ──────────────────────────────────────────────────────
+
 export const agentModelConfig = pgTable(
   'agent_model_config',
   {

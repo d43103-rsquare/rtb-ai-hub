@@ -2,23 +2,25 @@ import { exec, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { access, mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import type Redis from 'ioredis';
+import { eq, ne, lt } from 'drizzle-orm';
 import {
   createLogger,
   loadPreviewConfig,
+  dbSchema,
+  getDb,
   type PreviewConfig,
   type PreviewInstance,
   type Environment,
 } from '@rtb-ai-hub/shared';
+
+const { previewInstances } = dbSchema;
 
 const execAsync = promisify(exec);
 const logger = createLogger('preview-manager');
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const PREVIEW_PREFIX = 'preview:instance:';
-const PREVIEW_LIST_KEY = 'preview:active-list';
-const PREVIEW_TTL = 86400;
+const PREVIEW_TTL_SECONDS = 86400;
 
 // ─── Result Types ─────────────────────────────────────────────────────────────
 
@@ -50,15 +52,34 @@ function generatePreviewId(issueKey: string): string {
   return `prev_${issueKey}`;
 }
 
+/** Convert a DB row to the PreviewInstance type used by the rest of the app. */
+function rowToPreview(row: typeof previewInstances.$inferSelect): PreviewInstance {
+  return {
+    id: row.id,
+    issueKey: row.issueKey,
+    branchName: row.branchName,
+    env: row.env as Environment,
+    status: row.status as PreviewInstance['status'],
+    webPort: row.webPort,
+    apiPort: row.apiPort,
+    dbName: row.dbName,
+    worktreePath: row.worktreePath,
+    webUrl: row.webUrl,
+    apiUrl: row.apiUrl,
+    webPid: row.webPid ?? undefined,
+    apiPid: row.apiPid ?? undefined,
+    createdAt: row.createdAt.toISOString(),
+    lastAccessedAt: row.lastAccessedAt?.toISOString(),
+    error: row.error ?? undefined,
+  };
+}
+
 // ─── PreviewManager Class ─────────────────────────────────────────────────────
 
 export class PreviewManager {
   private config: PreviewConfig;
 
-  constructor(
-    private redis: Redis,
-    config?: Partial<PreviewConfig>
-  ) {
+  constructor(config?: Partial<PreviewConfig>) {
     this.config = { ...loadPreviewConfig(), ...config };
   }
 
@@ -68,7 +89,7 @@ export class PreviewManager {
    * Create and start a preview environment for a branch.
    *
    * Steps:
-   *   1. Check if preview already exists → return existing if running
+   *   1. Check if preview already exists -> return existing if running
    *   2. Check maxInstances limit
    *   3. Allocate port slot
    *   4. Create database from template
@@ -76,7 +97,7 @@ export class PreviewManager {
    *   6. Run install command
    *   7. Run migration command
    *   8. Spawn web + API processes
-   *   9. Save state to Redis
+   *   9. Save state to PostgreSQL
    */
   async startPreview(opts: {
     branchName: string;
@@ -150,8 +171,6 @@ export class PreviewManager {
         PORT: String(apiPort),
         DATABASE_URL: previewDbUrl,
         CORS_ORIGIN: `http://${this.config.host}:${webPort}`,
-        REDIS_HOST: process.env.REDIS_HOST || 'localhost',
-        REDIS_PORT: process.env.REDIS_PORT || '6379',
       });
 
       preview.status = 'running';
@@ -234,46 +253,40 @@ export class PreviewManager {
   }
 
   async listPreviews(): Promise<PreviewInstance[]> {
-    const ids = await this.redis.smembers(PREVIEW_LIST_KEY);
-    if (ids.length === 0) return [];
+    const db = getDb();
+    const rows = await db
+      .select()
+      .from(previewInstances)
+      .where(ne(previewInstances.status, 'stopped'));
 
-    const previews: PreviewInstance[] = [];
-    for (const id of ids) {
-      const preview = await this.getInstance(id);
-      if (preview) {
-        previews.push(preview);
-      } else {
-        await this.redis.srem(PREVIEW_LIST_KEY, id);
-      }
-    }
-
-    return previews;
+    return rows.map(rowToPreview);
   }
 
   async cleanupExpired(): Promise<PreviewCleanupResult> {
     logger.info('Running preview cleanup');
-    const previews = await this.listPreviews();
-    const now = Date.now();
-    const ttlMs = this.config.ttlHours * 3600 * 1000;
+    const now = new Date();
     const removed: string[] = [];
     const errors: string[] = [];
 
-    for (const preview of previews) {
-      const createdAt = new Date(preview.createdAt).getTime();
-      const age = now - createdAt;
+    // Find instances whose expiresAt has passed
+    const db = getDb();
+    const expiredRows = await db
+      .select()
+      .from(previewInstances)
+      .where(lt(previewInstances.expiresAt, now));
 
-      if (age > ttlMs) {
-        logger.info(
-          { previewId: preview.id, ageHours: Math.round(age / 3600000) },
-          'Preview expired — cleaning up'
-        );
+    for (const row of expiredRows) {
+      const preview = rowToPreview(row);
+      logger.info(
+        { previewId: preview.id },
+        'Preview expired — cleaning up'
+      );
 
-        const result = await this.stopPreview(preview.id);
-        if (result.success) {
-          removed.push(preview.id);
-        } else {
-          errors.push(`${preview.id}: ${result.error}`);
-        }
+      const result = await this.stopPreview(preview.id);
+      if (result.success) {
+        removed.push(preview.id);
+      } else {
+        errors.push(`${preview.id}: ${result.error}`);
       }
     }
 
@@ -281,31 +294,66 @@ export class PreviewManager {
     return { success: errors.length === 0, removed, errors };
   }
 
-  // ─── Redis State Management ───────────────────────────────────────────────
+  // ─── PostgreSQL State Management ─────────────────────────────────────────
 
   private async saveInstance(preview: PreviewInstance): Promise<void> {
-    const key = `${PREVIEW_PREFIX}${preview.id}`;
-    const ttl = this.config.ttlHours * 3600 || PREVIEW_TTL;
-    await this.redis.set(key, JSON.stringify(preview), 'EX', ttl);
-    await this.redis.sadd(PREVIEW_LIST_KEY, preview.id);
+    const db = getDb();
+    const ttlSeconds = this.config.ttlHours * 3600 || PREVIEW_TTL_SECONDS;
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + ttlSeconds * 1000);
+
+    await db
+      .insert(previewInstances)
+      .values({
+        id: preview.id,
+        issueKey: preview.issueKey,
+        branchName: preview.branchName,
+        env: preview.env,
+        status: preview.status,
+        webPort: preview.webPort,
+        apiPort: preview.apiPort,
+        dbName: preview.dbName,
+        worktreePath: preview.worktreePath,
+        webUrl: preview.webUrl,
+        apiUrl: preview.apiUrl,
+        webPid: preview.webPid ?? null,
+        apiPid: preview.apiPid ?? null,
+        error: preview.error ?? null,
+        createdAt: new Date(preview.createdAt),
+        lastAccessedAt: preview.lastAccessedAt ? new Date(preview.lastAccessedAt) : null,
+        expiresAt,
+      })
+      .onConflictDoUpdate({
+        target: previewInstances.id,
+        set: {
+          status: preview.status,
+          webPid: preview.webPid ?? null,
+          apiPid: preview.apiPid ?? null,
+          error: preview.error ?? null,
+          lastAccessedAt: now,
+          expiresAt,
+        },
+      });
+
     logger.debug({ previewId: preview.id, status: preview.status }, 'Preview state saved');
   }
 
   private async getInstance(previewId: string): Promise<PreviewInstance | null> {
-    const key = `${PREVIEW_PREFIX}${previewId}`;
-    const raw = await this.redis.get(key);
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw) as PreviewInstance;
-    } catch {
-      logger.warn({ previewId }, 'Failed to parse preview instance from Redis');
-      return null;
-    }
+    const db = getDb();
+    const rows = await db
+      .select()
+      .from(previewInstances)
+      .where(eq(previewInstances.id, previewId));
+
+    if (rows.length === 0) return null;
+    return rowToPreview(rows[0]);
   }
 
   private async removeInstance(previewId: string): Promise<void> {
-    await this.redis.del(`${PREVIEW_PREFIX}${previewId}`);
-    await this.redis.srem(PREVIEW_LIST_KEY, previewId);
+    const db = getDb();
+    await db
+      .delete(previewInstances)
+      .where(eq(previewInstances.id, previewId));
   }
 
   // ─── Port Allocation ──────────────────────────────────────────────────────
@@ -484,9 +532,9 @@ export class PreviewManager {
 
 let _manager: PreviewManager | null = null;
 
-export function getPreviewManager(redis: Redis): PreviewManager {
+export function getPreviewManager(): PreviewManager {
   if (!_manager) {
-    _manager = new PreviewManager(redis);
+    _manager = new PreviewManager();
   }
   return _manager;
 }
@@ -494,24 +542,23 @@ export function getPreviewManager(redis: Redis): PreviewManager {
 // ─── Convenience Exports ──────────────────────────────────────────────────────
 
 export async function startPreview(
-  redis: Redis,
   opts: { branchName: string; issueKey: string; env: Environment }
 ): Promise<PreviewStartResult> {
-  return getPreviewManager(redis).startPreview(opts);
+  return getPreviewManager().startPreview(opts);
 }
 
-export async function stopPreview(redis: Redis, previewId: string): Promise<PreviewStopResult> {
-  return getPreviewManager(redis).stopPreview(previewId);
+export async function stopPreview(previewId: string): Promise<PreviewStopResult> {
+  return getPreviewManager().stopPreview(previewId);
 }
 
-export async function getPreview(redis: Redis, previewId: string): Promise<PreviewInstance | null> {
-  return getPreviewManager(redis).getPreview(previewId);
+export async function getPreview(previewId: string): Promise<PreviewInstance | null> {
+  return getPreviewManager().getPreview(previewId);
 }
 
-export async function listPreviews(redis: Redis): Promise<PreviewInstance[]> {
-  return getPreviewManager(redis).listPreviews();
+export async function listPreviews(): Promise<PreviewInstance[]> {
+  return getPreviewManager().listPreviews();
 }
 
-export async function cleanupExpired(redis: Redis): Promise<PreviewCleanupResult> {
-  return getPreviewManager(redis).cleanupExpired();
+export async function cleanupExpired(): Promise<PreviewCleanupResult> {
+  return getPreviewManager().cleanupExpired();
 }

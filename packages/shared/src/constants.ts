@@ -12,15 +12,14 @@ export const QUEUE_NAMES = {
   DATADOG: 'datadog-queue',
 } as const;
 
-// Job Options
+// Job Options (pg-boss compatible)
 export const DEFAULT_JOB_OPTIONS = {
-  attempts: 3,
+  attempts: 3, // retryLimit in pg-boss
   backoff: {
     type: 'exponential' as const,
-    delay: 2000,
+    delay: 2000, // retryDelay base in ms (converted to seconds for pg-boss)
   },
-  removeOnComplete: 100,
-  removeOnFail: 50,
+  expireInMinutes: 60,
 };
 
 export type McpServiceKey = 'JIRA' | 'FIGMA' | 'GITHUB' | 'DATADOG';

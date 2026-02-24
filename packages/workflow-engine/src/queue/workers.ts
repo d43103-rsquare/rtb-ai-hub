@@ -1,4 +1,4 @@
-import { Worker } from 'bullmq';
+import PgBoss from 'pg-boss';
 import { QUEUE_NAMES, DEFAULT_ENVIRONMENT, createLogger } from '@rtb-ai-hub/shared';
 import type {
   FigmaWebhookEvent,
@@ -7,7 +7,6 @@ import type {
   DatadogWebhookEvent,
   Environment,
 } from '@rtb-ai-hub/shared';
-import { createRedisConnection } from './connection';
 import {
   processFigmaToJira,
   processAutoReview,
@@ -19,119 +18,80 @@ import { processTargetDeploy } from '../workflows/target-deploy';
 
 const logger = createLogger('workers');
 
-export function createWorkers() {
-  const connection = createRedisConnection();
+type JobPayload = {
+  event: FigmaWebhookEvent | JiraWebhookEvent | GitHubWebhookEvent | DatadogWebhookEvent;
+  userId: string | null;
+  env?: Environment;
+};
 
-  const figmaWorker = new Worker(
-    QUEUE_NAMES.FIGMA,
-    async (job) => {
+export async function registerWorkers(boss: PgBoss) {
+  await boss.createQueue(QUEUE_NAMES.FIGMA);
+  await boss.createQueue(QUEUE_NAMES.JIRA);
+  await boss.createQueue(QUEUE_NAMES.GITHUB);
+  await boss.createQueue(QUEUE_NAMES.DATADOG);
+
+  await boss.work<JobPayload>(QUEUE_NAMES.FIGMA, async (jobs) => {
+    for (const job of jobs) {
       logger.info({ jobId: job.id }, 'Processing Figma event');
       try {
-        const {
-          event,
-          userId,
-          env = DEFAULT_ENVIRONMENT,
-        } = job.data as { event: FigmaWebhookEvent; userId: string | null; env?: Environment };
-        const result = await processFigmaToJira(event, userId, env);
+        const { event, userId, env = DEFAULT_ENVIRONMENT } = job.data;
+        const result = await processFigmaToJira(event as FigmaWebhookEvent, userId, env);
         logger.info({ jobId: job.id, result, userId }, 'Figma workflow completed');
-        return result;
       } catch (error) {
         logger.error({ jobId: job.id, error }, 'Figma workflow failed');
         throw error;
       }
-    },
-    { connection, concurrency: 2 }
-  );
+    }
+  });
 
-  const jiraWorker = new Worker(
-    QUEUE_NAMES.JIRA,
-    async (job) => {
+  await boss.work<JobPayload>(QUEUE_NAMES.JIRA, async (jobs) => {
+    for (const job of jobs) {
       logger.info({ jobId: job.id }, 'Processing Jira event');
       try {
-        const {
-          event,
-          userId,
-          env = DEFAULT_ENVIRONMENT,
-        } = job.data as { event: JiraWebhookEvent; userId: string | null; env?: Environment };
-        const result = await processJiraAutoDev(event, userId, env);
+        const { event, userId, env = DEFAULT_ENVIRONMENT } = job.data;
+        const result = await processJiraAutoDev(event as JiraWebhookEvent, userId, env);
         logger.info({ jobId: job.id, result, userId }, 'Jira workflow completed');
-
-        return result;
       } catch (error) {
         logger.error({ jobId: job.id, error }, 'Jira workflow failed');
         throw error;
       }
-    },
-    { connection, concurrency: 2 }
-  );
+    }
+  });
 
-  const githubWorker = new Worker(
-    QUEUE_NAMES.GITHUB,
-    async (job) => {
+  await boss.work<JobPayload>(QUEUE_NAMES.GITHUB, async (jobs) => {
+    for (const job of jobs) {
       logger.info({ jobId: job.id }, 'Processing GitHub event');
       try {
-        const {
-          event,
-          userId,
-          env = DEFAULT_ENVIRONMENT,
-        } = job.data as { event: GitHubWebhookEvent; userId: string | null; env?: Environment };
-        if (event.type === 'push') {
-          const result = await processTargetDeploy(event, userId, env);
-          logger.info({ jobId: job.id, result, userId }, 'Target deploy workflow completed');
-          return result;
-        } else if (event.type === 'deployment') {
-          const result = await processDeployMonitor(event, userId, env);
-          logger.info({ jobId: job.id, result, userId }, 'Deploy monitor workflow completed');
-          return result;
+        const { event, userId, env = DEFAULT_ENVIRONMENT } = job.data;
+        const ghEvent = event as GitHubWebhookEvent;
+        if (ghEvent.type === 'push') {
+          await processTargetDeploy(ghEvent, userId, env);
+        } else if (ghEvent.type === 'deployment') {
+          await processDeployMonitor(ghEvent, userId, env);
         } else {
-          const result = await processAutoReview(event, userId, env);
-          logger.info({ jobId: job.id, result, userId }, 'Auto review workflow completed');
-          return result;
+          await processAutoReview(ghEvent, userId, env);
         }
+        logger.info({ jobId: job.id, userId }, 'GitHub workflow completed');
       } catch (error) {
         logger.error({ jobId: job.id, error }, 'GitHub workflow failed');
         throw error;
       }
-    },
-    { connection, concurrency: 2 }
-  );
+    }
+  });
 
-  const datadogWorker = new Worker(
-    QUEUE_NAMES.DATADOG,
-    async (job) => {
+  await boss.work<JobPayload>(QUEUE_NAMES.DATADOG, async (jobs) => {
+    for (const job of jobs) {
       logger.info({ jobId: job.id }, 'Processing Datadog event');
       try {
-        const {
-          event,
-          userId,
-          env = DEFAULT_ENVIRONMENT,
-        } = job.data as { event: DatadogWebhookEvent; userId: string | null; env?: Environment };
-        const result = await processIncidentToJira(event, userId, env);
+        const { event, userId, env = DEFAULT_ENVIRONMENT } = job.data;
+        const result = await processIncidentToJira(event as DatadogWebhookEvent, userId, env);
         logger.info({ jobId: job.id, result, userId }, 'Datadog workflow completed');
-        return result;
       } catch (error) {
         logger.error({ jobId: job.id, error }, 'Datadog workflow failed');
         throw error;
       }
-    },
-    { connection, concurrency: 2 }
-  );
-
-  figmaWorker.on('completed', (job) => {
-    logger.info({ jobId: job.id }, 'Figma job completed');
+    }
   });
 
-  figmaWorker.on('failed', (job, error) => {
-    logger.error({ jobId: job?.id, error }, 'Figma job failed');
-  });
-
-  githubWorker.on('completed', (job) => {
-    logger.info({ jobId: job.id }, 'GitHub job completed');
-  });
-
-  githubWorker.on('failed', (job, error) => {
-    logger.error({ jobId: job?.id, error }, 'GitHub job failed');
-  });
-
-  return { figmaWorker, jiraWorker, githubWorker, datadogWorker };
+  logger.info('All pg-boss workers registered');
 }

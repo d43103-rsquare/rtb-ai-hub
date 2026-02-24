@@ -9,16 +9,14 @@ vi.mock('node:fs/promises', () => ({
   access: vi.fn(),
 }));
 
-vi.mock('bullmq', () => {
-  const MockQueue = vi.fn(function (this: Record<string, unknown>) {
-    this.add = vi.fn().mockResolvedValue(undefined);
-    this.close = vi.fn().mockResolvedValue(undefined);
-  });
-  return { Queue: MockQueue };
-});
+vi.mock('../../queue/queues', () => ({
+  sendToGithubQueue: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock('../../queue/connection', () => ({
-  createRedisConnection: vi.fn().mockReturnValue({}),
+  getBoss: vi.fn().mockReturnValue({
+    send: vi.fn().mockResolvedValue('job-id'),
+  }),
 }));
 
 const { exec } = await import('node:child_process');

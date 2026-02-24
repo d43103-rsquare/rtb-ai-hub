@@ -11,7 +11,6 @@ import {
 } from '../utils/local-git-ops.js';
 import { runTargetCi } from '../utils/target-ci.js';
 import { PreviewManager } from '../utils/preview-manager.js';
-import { createRedisConnection } from '../queue/connection.js';
 import { getMcpClient } from '../clients/mcp-client.js';
 
 const logger = createLogger('hub-api');
@@ -241,8 +240,7 @@ export async function handleDeployPreview(
     const body = await readBody(req);
     const { branchName, jiraKey, env = 'int' } = JSON.parse(body);
 
-    const redis = createRedisConnection();
-    const previewManager = new PreviewManager(redis);
+    const previewManager = new PreviewManager();
 
     const result = await previewManager.startPreview({
       branchName,

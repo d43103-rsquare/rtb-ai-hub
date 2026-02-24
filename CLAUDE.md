@@ -11,7 +11,7 @@ pnpm dev
 # Individual services
 pnpm dev:auth        # Auth Service :4001
 pnpm dev:webhook     # Webhook Listener :4000
-pnpm dev:workflow    # Workflow Engine (BullMQ worker)
+pnpm dev:workflow    # Workflow Engine (pg-boss worker)
 pnpm dev:dashboard   # React Dashboard :3000 (Vite)
 
 # Build (shared MUST be built first — other packages depend on it)
@@ -70,8 +70,8 @@ This is a **pnpm monorepo** with 5 packages that automate software development w
 @rtb-ai-hub/shared          ← Foundation: types, constants, DB schema, logger
     ↑
 @rtb-ai-hub/auth-service    ← Google OAuth + JWT auth (:4001)
-@rtb-ai-hub/webhook-listener ← Express API, receives webhooks, enqueues to BullMQ (:4000)
-@rtb-ai-hub/workflow-engine  ← BullMQ worker, runs AI workflows
+@rtb-ai-hub/webhook-listener ← Express API, receives webhooks, enqueues to pg-boss (:4000)
+@rtb-ai-hub/workflow-engine  ← pg-boss worker, runs AI workflows
 @rtb-ai-hub/dashboard       ← React + Vite + Tailwind frontend (:3000)
 ```
 
@@ -80,7 +80,7 @@ All backend packages import from `@rtb-ai-hub/shared` via `workspace:*`. The sha
 ### Request Flow
 
 ```
-Webhook (Figma/Jira/GitHub/Datadog) → webhook-listener → BullMQ queue (Redis)
+Webhook (Figma/Jira/GitHub/Datadog) → webhook-listener → pg-boss queue (PostgreSQL)
     → workflow-engine worker picks up job → runs AI workflow → calls external APIs via MCP
 ```
 
@@ -110,7 +110,7 @@ Defined in `packages/shared/src/constants.ts` as `FEATURE_FLAGS`. Key flags: `DE
 - **Environment variables**: Access via `getEnv(key, default)` or `requireEnv(key)` from shared. Never read `process.env` directly in application code outside of constants.ts.
 - **Testing**: Vitest with `vi.mock()` for module mocking. Test files go in `src/__tests__/` within each package. Use `supertest` for Express route testing.
 - **Database**: Drizzle ORM with PostgreSQL. Schema in shared package, migrations via drizzle-kit.
-- **Queue**: BullMQ with Redis. Queue names defined in `QUEUE_NAMES` constant. Jobs include `env` field for environment routing.
+- **Queue**: pg-boss with PostgreSQL. Queue names defined in `QUEUE_NAMES` constant. Jobs include `env` field for environment routing.
 - **MCP integration**: Native SDK connections (no Docker containers). Endpoints configured in `NATIVE_MCP_ENDPOINTS`. Tokens loaded via `getNativeMcpToken(service, env)`.
 
 ## Tool Priority (도구 우선순위)

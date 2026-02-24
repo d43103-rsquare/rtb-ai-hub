@@ -1,7 +1,6 @@
 import { Router } from 'express';
-import { Queue } from 'bullmq';
 import {
-  QUEUE_NAMES as _QUEUE_NAMES,
+  QUEUE_NAMES,
   generateId,
   figmaWebhookSchema,
   validateBody,
@@ -11,8 +10,9 @@ import {
 import type { FigmaWebhookEvent, Environment } from '@rtb-ai-hub/shared';
 import { optionalAuth, AuthRequest } from '../middleware/auth';
 import { verifyFigmaSignature } from '../middleware/webhook-signature';
+import { enqueueJob } from '../queue-client';
 
-export function createFigmaRouter(figmaQueue: Queue) {
+export function createFigmaRouter() {
   const router = Router();
 
   router.post(
@@ -38,16 +38,15 @@ export function createFigmaRouter(figmaQueue: Queue) {
           payload: req.body,
         };
 
-        await figmaQueue.add(
-          'figma-event',
+        const jobId = generateId('figma');
+        await enqueueJob(
+          QUEUE_NAMES.FIGMA,
           {
             event,
             userId: req.user?.userId || null,
             env,
           },
-          {
-            jobId: generateId('figma'),
-          }
+          jobId
         );
 
         res.status(202).json({ status: 'accepted', eventId: event.fileKey });

@@ -1,25 +1,33 @@
-import { Queue } from 'bullmq';
 import { QUEUE_NAMES, DEFAULT_JOB_OPTIONS } from '@rtb-ai-hub/shared';
-import { createRedisConnection } from './connection';
+import { getBoss } from './connection';
 
-const connection = createRedisConnection();
+export type QueueSendOptions = {
+  jobId?: string;
+};
 
-export const figmaQueue = new Queue(QUEUE_NAMES.FIGMA, {
-  connection,
-  defaultJobOptions: DEFAULT_JOB_OPTIONS,
-});
+async function send(queue: string, data: unknown, opts?: QueueSendOptions): Promise<string | null> {
+  const boss = getBoss();
+  return boss.send(queue, data as object, {
+    id: opts?.jobId,
+    retryLimit: DEFAULT_JOB_OPTIONS.attempts,
+    retryDelay: DEFAULT_JOB_OPTIONS.backoff.delay / 1000, // pg-boss uses seconds
+    retryBackoff: true,
+    expireInMinutes: DEFAULT_JOB_OPTIONS.expireInMinutes,
+  });
+}
 
-export const jiraQueue = new Queue(QUEUE_NAMES.JIRA, {
-  connection,
-  defaultJobOptions: DEFAULT_JOB_OPTIONS,
-});
+export async function sendToFigmaQueue(data: unknown, opts?: QueueSendOptions) {
+  return send(QUEUE_NAMES.FIGMA, data, opts);
+}
 
-export const githubQueue = new Queue(QUEUE_NAMES.GITHUB, {
-  connection,
-  defaultJobOptions: DEFAULT_JOB_OPTIONS,
-});
+export async function sendToJiraQueue(data: unknown, opts?: QueueSendOptions) {
+  return send(QUEUE_NAMES.JIRA, data, opts);
+}
 
-export const datadogQueue = new Queue(QUEUE_NAMES.DATADOG, {
-  connection,
-  defaultJobOptions: DEFAULT_JOB_OPTIONS,
-});
+export async function sendToGithubQueue(data: unknown, opts?: QueueSendOptions) {
+  return send(QUEUE_NAMES.GITHUB, data, opts);
+}
+
+export async function sendToDatadogQueue(data: unknown, opts?: QueueSendOptions) {
+  return send(QUEUE_NAMES.DATADOG, data, opts);
+}
