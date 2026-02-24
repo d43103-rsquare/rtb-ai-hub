@@ -7,6 +7,14 @@ export default defineConfig({
     port: Number(process.env.DASHBOARD_PORT || 6000),
     host: true,
     proxy: {
+      '/auth': {
+        target: 'http://localhost:4001',
+        changeOrigin: true,
+      },
+      '/api/me': {
+        target: 'http://localhost:4001',
+        changeOrigin: true,
+      },
       '/api': {
         target: 'http://localhost:4000',
         changeOrigin: true,
