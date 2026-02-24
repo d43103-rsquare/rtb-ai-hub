@@ -54,8 +54,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-rtb_ai_hub}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-rtb_ai_hub}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-minimum-32-characters-long}
       JIRA_HOST: ${JIRA_HOST:-}
@@ -65,8 +64,6 @@ services:
       - '${WEBHOOK_PORT:-4100}:4100'
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     networks:
       - rtb-network
