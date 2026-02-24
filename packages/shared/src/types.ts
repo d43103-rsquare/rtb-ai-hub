@@ -142,22 +142,22 @@ export enum AITier {
   LIGHT = 'light', // Quick operations, monitoring
 }
 
-export interface AIClient {
-  model: AIModel;
-  tier: AITier;
-  generateText(prompt: string, options?: AIGenerateOptions): Promise<AIResponse>;
-  generateWithTools(
-    prompt: string,
-    tools: MCPTool[],
-    options?: AIGenerateOptions
-  ): Promise<AIResponseWithTools>;
-}
+export type ProviderType = 'claude' | 'openai' | 'gemini';
 
-export type AIGenerateOptions = {
-  maxTokens?: number;
-  temperature?: number;
-  systemPrompt?: string;
-};
+export interface ProviderAdapter {
+  readonly provider: ProviderType;
+
+  complete(
+    prompt: string,
+    options: {
+      systemPrompt: string;
+      maxTokens: number;
+      temperature: number;
+    }
+  ): Promise<AIResponse>;
+
+  calculateCost(tokensInput: number, tokensOutput: number, model: string): number;
+}
 
 export type AIResponse = {
   text: string;
@@ -167,10 +167,6 @@ export type AIResponse = {
     output: number;
   };
   finishReason: string;
-};
-
-export type AIResponseWithTools = AIResponse & {
-  toolCalls?: MCPToolCall[];
 };
 
 // MCP Tool Types

@@ -1,6 +1,6 @@
-import { createLogger, AITier } from '@rtb-ai-hub/shared';
+import { createLogger } from '@rtb-ai-hub/shared';
 import type { Environment } from '@rtb-ai-hub/shared';
-import { anthropicClient } from '../clients/anthropic';
+import { ClaudeAdapter } from '../clients/adapters/claude-adapter';
 import { createJiraStory, createJiraTask, type JiraIssueResult } from '../clients/mcp-helper';
 
 const logger = createLogger('story-decomposer');
@@ -93,12 +93,12 @@ async function generateTaskBreakdown(
 ): Promise<TaskBreakdown[]> {
   const prompt = buildTaskBreakdownPrompt(storySummary, storyDescription, figmaContext);
 
-  const response = await anthropicClient.generateText(prompt, {
-    tier: AITier.MEDIUM,
-    maxTokens: 2000,
-    temperature: 0.3,
+  const adapter = new ClaudeAdapter();
+  const response = await adapter.complete(prompt, {
     systemPrompt:
       'You are an expert technical project manager. Break down user stories into concrete, actionable development tasks. Output valid JSON only.',
+    maxTokens: 2000,
+    temperature: 0.3,
   });
 
   try {

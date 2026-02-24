@@ -18,7 +18,7 @@ import type {
   DebateTurnType,
 } from '@rtb-ai-hub/shared';
 import { generateId, createLogger } from '@rtb-ai-hub/shared';
-import { AnthropicClient } from '../clients/anthropic';
+import { AIProviderRouter } from '../clients/provider-router';
 import { ExecutionGuard, createExecutionGuard } from '../harness/execution-guard';
 import { Observer, createObserver } from '../harness/observer';
 import { ConsensusDetector, createConsensusDetector } from './consensus-detector';
@@ -28,18 +28,18 @@ import { DebateStore } from './debate-store';
 const logger = createLogger('debate-engine');
 
 export type DebateEngineOptions = {
-  aiClient: AnthropicClient;
+  router: AIProviderRouter;
   store?: DebateStore;
   onTurnComplete?: (turn: DebateTurn, session: DebateSession) => void;
 };
 
 export class DebateEngine {
-  private aiClient: AnthropicClient;
+  private router: AIProviderRouter;
   private store?: DebateStore;
   private onTurnComplete?: (turn: DebateTurn, session: DebateSession) => void;
 
   constructor(options: DebateEngineOptions) {
-    this.aiClient = options.aiClient;
+    this.router = options.router;
     this.store = options.store;
     this.onTurnComplete = options.onTurnComplete;
   }
@@ -324,10 +324,11 @@ export class DebateEngine {
 
     observer.onTurnStart(input.agent, input.turnNumber);
 
-    const turn = await executeTurn(input, { aiClient: this.aiClient });
+    const turn = await executeTurn(input, { router: this.router });
 
     // Record with guard
-    const costUsd = this.aiClient.calculateCost(
+    const { adapter } = this.router.getAdapterForAgent(input.agent);
+    const costUsd = adapter.calculateCost(
       turn.tokensUsed.input,
       turn.tokensUsed.output,
       turn.model

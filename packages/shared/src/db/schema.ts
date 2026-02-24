@@ -329,3 +329,22 @@ export const debateSessionsRelations = relations(debateSessions, ({ one }) => ({
     references: [workflowExecutions.id],
   }),
 }));
+
+// ─── agent_model_config ──────────────────────────────────────────────────────
+
+export const agentModelConfig = pgTable(
+  'agent_model_config',
+  {
+    id: varchar('id', { length: 255 }).primaryKey(),
+    persona: varchar('persona', { length: 50 }).notNull(),    // AgentPersona enum 값
+    provider: varchar('provider', { length: 20 }).notNull(),  // 'claude' | 'openai' | 'gemini'
+    model: varchar('model', { length: 100 }).notNull(),       // 실제 모델 ID
+    env: varchar('env', { length: 10 }).notNull().default('all'), // 'all' | 'int' | 'stg' | 'prd'
+    enabled: boolean('enabled').notNull().default(true),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_agent_model_config_persona').on(table.persona),
+    index('idx_agent_model_config_env').on(table.env),
+  ]
+);

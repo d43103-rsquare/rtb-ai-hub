@@ -21,8 +21,12 @@ import type {
   Environment,
   DebateConfig,
 } from '@rtb-ai-hub/shared';
-import { AnthropicClient, anthropicClient } from '../clients/anthropic';
 import { database } from '../clients/database';
+import { ClaudeAdapter } from '../clients/adapters/claude-adapter';
+import { OpenAIAdapter } from '../clients/adapters/openai-adapter';
+import { GeminiAdapter } from '../clients/adapters/gemini-adapter';
+import { createProviderRouter } from '../clients/provider-router';
+import type { ProviderAdapter } from '@rtb-ai-hub/shared';
 import {
   createGitHubReview,
   createGitHubReviewComment,
@@ -116,9 +120,13 @@ export async function processAutoReview(
       budgetUsd: parseFloat(process.env.DEBATE_COST_LIMIT_USD || '3'),
     };
 
-    const aiClient = new AnthropicClient();
+    const adapters: ProviderAdapter[] = [new ClaudeAdapter()];
+    if (process.env.OPENAI_API_KEY) adapters.push(new OpenAIAdapter());
+    if (process.env.GEMINI_API_KEY) adapters.push(new GeminiAdapter());
+    const router = createProviderRouter(adapters);
+    await router.loadConfig(env);
     const debateStore = createDebateStore(database);
-    const debateEngine = createDebateEngine({ aiClient, store: debateStore });
+    const debateEngine = createDebateEngine({ router, store: debateStore });
 
     let debateSession;
     let review: ReviewAnalysis;
@@ -142,7 +150,7 @@ export async function processAutoReview(
         'Debate failed — falling back to single AI call'
       );
 
-      const fallbackResult = await singleAiReview(anthropicClient, event, executionId);
+      const fallbackResult = await singleAiReview(new ClaudeAdapter(), event, executionId);
       review = fallbackResult.review;
     }
 
@@ -263,12 +271,10 @@ function extractReviewFromDebate(debateSession: any): ReviewAnalysis {
 }
 
 async function singleAiReview(
-  aiClient: typeof anthropicClient,
+  adapter: ClaudeAdapter,
   event: GitHubWebhookEvent,
   executionId: string
 ): Promise<{ review: ReviewAnalysis }> {
-  const { AITier } = await import('@rtb-ai-hub/shared');
-
   const prompt = `
 Analyze this GitHub Pull Request and provide a thorough code review.
 
@@ -298,14 +304,14 @@ Format your response as JSON:
 }
 `;
 
-  const aiResponse = await aiClient.generateText(prompt, {
-    tier: AITier.MEDIUM,
-    maxTokens: 3000,
+  const aiResponse = await adapter.complete(prompt, {
     systemPrompt:
       'You are an expert code reviewer focused on code quality, security vulnerabilities, performance issues, and best practices.',
+    maxTokens: 3000,
+    temperature: 0.3,
   });
 
-  const cost = aiClient.calculateCost(
+  const cost = adapter.calculateCost(
     aiResponse.tokensUsed.input,
     aiResponse.tokensUsed.output,
     aiResponse.model

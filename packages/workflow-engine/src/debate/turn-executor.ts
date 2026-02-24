@@ -7,7 +7,7 @@
  */
 
 import type { AgentPersona, DebateArtifact, DebateContext, DebateTurn, DebateTurnType } from '@rtb-ai-hub/shared';
-import { AnthropicClient } from '../clients/anthropic';
+import { AIProviderRouter } from '../clients/provider-router';
 import { getPersona } from './persona-registry';
 import { buildSystemPrompt } from './prompts/base-prompt';
 import { buildTurnInstruction } from './prompts/debate-instruction';
@@ -16,8 +16,7 @@ import { createLogger } from '@rtb-ai-hub/shared';
 const logger = createLogger('turn-executor');
 
 export type TurnExecutorOptions = {
-  aiClient: AnthropicClient;
-  maxTokens?: number;
+  router: AIProviderRouter;
   temperature?: number;
 };
 
@@ -54,11 +53,11 @@ export async function executeTurn(
     'Executing debate turn'
   );
 
-  const aiResponse = await options.aiClient.generateText(turnInstruction, {
-    maxTokens: options.maxTokens ?? persona.maxTokensPerTurn,
-    temperature: options.temperature ?? 0.7,
+  const { adapter } = options.router.getAdapterForAgent(input.agent);
+  const aiResponse = await adapter.complete(turnInstruction, {
     systemPrompt,
-    tier: persona.aiTier,
+    maxTokens: persona.maxTokensPerTurn,
+    temperature: options.temperature ?? 0.7,
   });
 
   // Parse artifacts from response

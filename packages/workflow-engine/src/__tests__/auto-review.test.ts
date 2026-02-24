@@ -2,11 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WorkflowStatus, WorkflowType, AgentPersona } from '@rtb-ai-hub/shared';
 import type { GitHubWebhookEvent } from '@rtb-ai-hub/shared';
 
-const mockGenerateText = vi.fn();
+const mockComplete = vi.fn();
 const mockCalculateCost = vi.fn();
 const mockSaveWorkflowExecution = vi.fn();
 const mockSaveAICost = vi.fn();
 const mockDebateRun = vi.fn();
+const mockLoadConfig = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@rtb-ai-hub/shared', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@rtb-ai-hub/shared')>();
@@ -22,16 +23,21 @@ vi.mock('@rtb-ai-hub/shared', async (importOriginal) => {
   };
 });
 
-vi.mock('../clients/anthropic', () => {
-  class MockAnthropicClient {
-    generateText = mockGenerateText;
-    calculateCost = mockCalculateCost;
-  }
-  return {
-    AnthropicClient: MockAnthropicClient,
-    anthropicClient: new MockAnthropicClient(),
-  };
-});
+vi.mock('../clients/adapters/claude-adapter', () => ({
+  ClaudeAdapter: vi.fn().mockImplementation(function () {
+    return { complete: mockComplete, calculateCost: mockCalculateCost, provider: 'claude' };
+  }),
+}));
+
+vi.mock('../clients/provider-router', () => ({
+  createProviderRouter: vi.fn().mockReturnValue({
+    loadConfig: mockLoadConfig,
+    getAdapterForAgent: vi.fn().mockReturnValue({
+      adapter: { complete: mockComplete, calculateCost: mockCalculateCost, provider: 'claude' },
+      model: 'claude-sonnet-4-20250514',
+    }),
+  }),
+}));
 
 vi.mock('../clients/database', () => ({
   database: {
@@ -106,7 +112,7 @@ describe('processAutoReview', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mockDebateRun.mockResolvedValue(mockDebateSession);
-    mockGenerateText.mockResolvedValue({
+    mockComplete.mockResolvedValue({
       text: JSON.stringify({
         summary: 'Code looks good overall',
         approved: true,
@@ -152,12 +158,12 @@ describe('processAutoReview', () => {
     expect(result.success).toBe(true);
     expect(result.review.approved).toBe(true);
     expect(result.review.summary).toBe('Code looks good overall');
-    expect(mockGenerateText).toHaveBeenCalledTimes(1);
+    expect(mockComplete).toHaveBeenCalledTimes(1);
   });
 
   it('falls back handles non-JSON AI response (raw text)', async () => {
     mockDebateRun.mockRejectedValue(new Error('Debate engine unavailable'));
-    mockGenerateText.mockResolvedValue({
+    mockComplete.mockResolvedValue({
       text: 'This is a plain text review without JSON formatting.',
       model: 'claude-sonnet-4-20250514',
       tokensUsed: { input: 500, output: 200 },
@@ -200,7 +206,7 @@ describe('processAutoReview', () => {
   it('handles errors and saves failed execution', async () => {
     const error = new Error('Fatal debate error');
     mockDebateRun.mockRejectedValue(error);
-    mockGenerateText.mockRejectedValue(error);
+    mockComplete.mockRejectedValue(error);
 
     await expect(processAutoReview(mockEvent, 'user-456')).rejects.toThrow(
       'Fatal debate error'

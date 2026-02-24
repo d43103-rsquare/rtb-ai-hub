@@ -3,12 +3,11 @@ import {
   generateId,
   WorkflowStatus,
   WorkflowType,
-  AITier,
   DEFAULT_ENVIRONMENT,
 } from '@rtb-ai-hub/shared';
 import type { GitHubWebhookEvent, WorkflowExecution, Environment } from '@rtb-ai-hub/shared';
-import { anthropicClient } from '../clients/anthropic';
 import { database } from '../clients/database';
+import { ClaudeAdapter } from '../clients/adapters/claude-adapter';
 import { createDatadogMonitor } from '../clients/mcp-helper';
 
 const logger = createLogger('deploy-monitor-workflow');
@@ -35,7 +34,7 @@ export async function processDeployMonitor(
 
   logger.info({ event, executionId, userId, env }, 'Starting deploy-monitor workflow');
 
-  const aiClient = anthropicClient;
+  const aiClient = new ClaudeAdapter();
 
   const execution: Partial<WorkflowExecution> = {
     id: executionId,
@@ -98,11 +97,11 @@ Format your response as JSON:
 }
 `;
 
-    const aiResponse = await aiClient.generateText(prompt, {
-      tier: AITier.MEDIUM,
-      maxTokens: 2000,
+    const aiResponse = await aiClient.complete(prompt, {
       systemPrompt:
         'You are an expert DevOps engineer specializing in deployment monitoring, risk assessment, and incident prevention.',
+      maxTokens: 2000,
+      temperature: 0.3,
     });
 
     logger.info({ executionId, tokensUsed: aiResponse.tokensUsed }, 'AI analysis complete');

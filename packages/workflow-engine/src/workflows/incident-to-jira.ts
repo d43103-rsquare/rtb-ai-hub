@@ -3,12 +3,11 @@ import {
   generateId,
   WorkflowStatus,
   WorkflowType,
-  AITier,
   DEFAULT_ENVIRONMENT,
 } from '@rtb-ai-hub/shared';
 import type { DatadogWebhookEvent, WorkflowExecution, Environment } from '@rtb-ai-hub/shared';
-import { anthropicClient } from '../clients/anthropic';
 import { database } from '../clients/database';
+import { ClaudeAdapter } from '../clients/adapters/claude-adapter';
 import { createJiraIssue, getJiraProjectKey } from '../clients/mcp-helper';
 
 const logger = createLogger('incident-to-jira-workflow');
@@ -36,7 +35,7 @@ export async function processIncidentToJira(
 
   logger.info({ event, executionId, userId, env }, 'Starting incident-to-jira workflow');
 
-  const aiClient = anthropicClient;
+  const aiClient = new ClaudeAdapter();
 
   const execution: Partial<WorkflowExecution> = {
     id: executionId,
@@ -102,11 +101,11 @@ Format your response as JSON:
 }
 `;
 
-    const aiResponse = await aiClient.generateText(prompt, {
-      tier: AITier.MEDIUM,
-      maxTokens: 2500,
+    const aiResponse = await aiClient.complete(prompt, {
       systemPrompt:
         'You are an expert SRE and incident responder who performs root cause analysis and creates actionable Jira tickets from monitoring alerts.',
+      maxTokens: 2500,
+      temperature: 0.3,
     });
 
     logger.info({ executionId, tokensUsed: aiResponse.tokensUsed }, 'AI analysis complete');
