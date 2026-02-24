@@ -1,0 +1,51 @@
+{
+  "version": "1.0",
+  "description": "Figma design system → team React component mapping",
+  "mappings": [
+    {
+      "figmaPattern": "DesignSystem/Button",
+      "matchType": "prefix",
+      "component": {
+        "name": "RtbButton",
+        "importPath": "@rtb/ui/components/Button",
+        "props": {
+          "variant": "primary | secondary | ghost",
+          "size": "sm | md | lg",
+          "disabled": "boolean"
+        },
+        "usage": "<RtbButton variant=\"primary\" size=\"md\">Label</RtbButton>",
+        "notes": "Wraps DesignSystem Button with RTB theme tokens"
+      }
+    },
+    {
+      "figmaPattern": "DesignSystem/Input",
+      "matchType": "prefix",
+      "component": {
+        "name": "RtbInput",
+        "importPath": "@rtb/ui/components/Input",
+        "props": {
+          "type": "text | number | email | password",
+          "placeholder": "string",
+          "disabled": "boolean",
+          "error": "string"
+        },
+        "usage": "<RtbInput type=\"text\" placeholder=\"Enter value\" />",
+        "notes": "Wraps DesignSystem Input with RTB validation patterns"
+      }
+    },
+    {
+      "figmaPattern": "DesignSystem/Card",
+      "matchType": "prefix",
+      "component": {
+        "name": "RtbCard",
+        "importPath": "@rtb/ui/components/Card",
+        "props": {
+          "variant": "default | outlined | elevated",
+          "padding": "sm | md | lg"
+        },
+        "usage": "<RtbCard variant=\"default\" padding=\"md\">Content</RtbCard>",
+        "notes": "Wraps DesignSystem Card with RTB elevation and spacing tokens"
+      }
+    }
+  ]
+}

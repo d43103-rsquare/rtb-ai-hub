@@ -71,6 +71,19 @@ mcp__figma__get_screenshot({
 
 ---
 
+## Step 2.5: 팀 컴포넌트 매핑 확인
+
+`packages/workflow-engine/component-mapping.json` 파일을 읽어 팀 컴포넌트 매핑을 확인합니다.
+
+파일이 존재하면:
+- 발견된 Figma 컴포넌트명을 매핑의 `figmaPattern`과 대조 (prefix 매치 포함)
+- 매칭된 팀 컴포넌트의 import, props, usage를 분석에 포함
+- 매칭 안 되는 컴포넌트는 "신규 구현 필요"로 분류
+
+파일이 없으면 이 단계를 건너뜁니다.
+
+---
+
 ## Step 3: 디자인 분석
 
 수집된 데이터를 기반으로 아래 항목을 분석합니다:
@@ -119,6 +132,7 @@ mcp__figma__get_screenshot({
 ### Tasks
 
 #### Task 1: [컴포넌트/기능명] (SP: N)
+**팀 컴포넌트**: `ComponentName` (`import/path`) — 매핑 있는 경우
 
 **설명**: [구현 범위, 기술적 고려사항]
 

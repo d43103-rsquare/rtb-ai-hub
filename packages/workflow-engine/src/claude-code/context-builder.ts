@@ -69,6 +69,13 @@ ${input.context.codeContext}`);
 ${input.context.previousDecisions}`);
   }
 
+  // Additional Context (e.g., Team Component Mapping)
+  if (input.context.additionalContext) {
+    for (const [key, value] of Object.entries(input.context.additionalContext)) {
+      sections.push(`## ${key}\n${value}`);
+    }
+  }
+
   // Coding Guidelines
   if (input.codingGuidelines) {
     sections.push(`## Coding Guidelines
