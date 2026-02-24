@@ -11,6 +11,13 @@ vi.mock('../middleware/auth', () => ({
   AuthRequest: {},
 }));
 
+vi.mock('../middleware/webhook-signature', () => ({
+  verifyFigmaSignature: (_req: unknown, _res: unknown, next: () => void) => next(),
+  verifyJiraSignature: (_req: unknown, _res: unknown, next: () => void) => next(),
+  verifyGitHubSignature: (_req: unknown, _res: unknown, next: () => void) => next(),
+  verifyDatadogSignature: (_req: unknown, _res: unknown, next: () => void) => next(),
+}));
+
 vi.mock('@rtb-ai-hub/shared', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@rtb-ai-hub/shared')>();
   return {
@@ -24,12 +31,12 @@ vi.mock('@rtb-ai-hub/shared', async (importOriginal) => {
   };
 });
 
-function createMockQueue() {
-  return {
-    add: vi.fn().mockResolvedValue({ id: 'test-job-id' }),
-    name: 'test-queue',
-  };
-}
+const mockEnqueueJob = vi.fn().mockResolvedValue('test-job-id');
+vi.mock('../queue-client', () => ({
+  enqueueJob: (...args: unknown[]) => mockEnqueueJob(...args),
+  getQueueClient: vi.fn().mockResolvedValue({}),
+  stopQueueClient: vi.fn(),
+}));
 
 function createTestApp(router: express.Router) {
   const app = express();
@@ -50,12 +57,12 @@ function createTestApp(router: express.Router) {
 }
 
 describe('Figma webhook route', () => {
-  let mockQueue: ReturnType<typeof createMockQueue>;
   let app: express.Express;
 
   beforeEach(() => {
-    mockQueue = createMockQueue();
-    app = createTestApp(createFigmaRouter(mockQueue as never));
+    mockEnqueueJob.mockClear();
+    mockEnqueueJob.mockResolvedValue('test-job-id');
+    app = createTestApp(createFigmaRouter());
   });
 
   it('returns 202 for valid payload', async () => {
@@ -68,9 +75,9 @@ describe('Figma webhook route', () => {
     expect(res.status).toBe(202);
     expect(res.body.status).toBe('accepted');
     expect(res.body.eventId).toBe('abc123');
-    expect(mockQueue.add).toHaveBeenCalledTimes(1);
-    expect(mockQueue.add).toHaveBeenCalledWith(
-      'figma-event',
+    expect(mockEnqueueJob).toHaveBeenCalledTimes(1);
+    expect(mockEnqueueJob).toHaveBeenCalledWith(
+      expect.stringContaining('figma'),
       expect.objectContaining({
         event: expect.objectContaining({
           source: 'figma',
@@ -79,9 +86,7 @@ describe('Figma webhook route', () => {
         }),
         env: 'int',
       }),
-      expect.objectContaining({
-        jobId: expect.stringMatching(/^figma_/),
-      })
+      expect.stringMatching(/^figma_/)
     );
   });
 
@@ -95,8 +100,8 @@ describe('Figma webhook route', () => {
     expect(res.body.error).toBe('Validation failed');
   });
 
-  it('returns 500 when queue.add fails', async () => {
-    mockQueue.add.mockRejectedValue(new Error('Redis connection failed'));
+  it('returns 500 when enqueueJob fails', async () => {
+    mockEnqueueJob.mockRejectedValue(new Error('pg-boss connection failed'));
 
     const res = await request(app).post('/webhooks/figma').send({
       event_type: 'FILE_UPDATE',
@@ -115,26 +120,26 @@ describe('Figma webhook route', () => {
     });
 
     expect(res.status).toBe(202);
-    expect(mockQueue.add).toHaveBeenCalledWith(
-      'figma-event',
+    expect(mockEnqueueJob).toHaveBeenCalledWith(
+      expect.stringContaining('figma'),
       expect.objectContaining({
         event: expect.objectContaining({
           type: 'FILE_UPDATE',
         }),
         env: 'int',
       }),
-      expect.any(Object)
+      expect.any(String)
     );
   });
 });
 
 describe('Jira webhook route', () => {
-  let mockQueue: ReturnType<typeof createMockQueue>;
   let app: express.Express;
 
   beforeEach(() => {
-    mockQueue = createMockQueue();
-    app = createTestApp(createJiraRouter(mockQueue as never));
+    mockEnqueueJob.mockClear();
+    mockEnqueueJob.mockResolvedValue('test-job-id');
+    app = createTestApp(createJiraRouter());
   });
 
   it('returns 202 for valid payload', async () => {
@@ -154,7 +159,7 @@ describe('Jira webhook route', () => {
     expect(res.status).toBe(202);
     expect(res.body.status).toBe('accepted');
     expect(res.body.eventId).toBe('PROJ-123');
-    expect(mockQueue.add).toHaveBeenCalledTimes(1);
+    expect(mockEnqueueJob).toHaveBeenCalledTimes(1);
   });
 
   it('returns 202 for minimal payload (passthrough schema)', async () => {
@@ -163,11 +168,11 @@ describe('Jira webhook route', () => {
     });
 
     expect(res.status).toBe(202);
-    expect(mockQueue.add).toHaveBeenCalledTimes(1);
+    expect(mockEnqueueJob).toHaveBeenCalledTimes(1);
   });
 
-  it('returns 500 when queue.add fails', async () => {
-    mockQueue.add.mockRejectedValue(new Error('Queue error'));
+  it('returns 500 when enqueueJob fails', async () => {
+    mockEnqueueJob.mockRejectedValue(new Error('Queue error'));
 
     const res = await request(app)
       .post('/webhooks/jira')
@@ -185,12 +190,12 @@ describe('Jira webhook route', () => {
 });
 
 describe('GitHub webhook route', () => {
-  let mockQueue: ReturnType<typeof createMockQueue>;
   let app: express.Express;
 
   beforeEach(() => {
-    mockQueue = createMockQueue();
-    app = createTestApp(createGitHubRouter(mockQueue as never));
+    mockEnqueueJob.mockClear();
+    mockEnqueueJob.mockResolvedValue('test-job-id');
+    app = createTestApp(createGitHubRouter());
   });
 
   it('returns 202 for valid pull_request payload', async () => {
@@ -209,8 +214,8 @@ describe('GitHub webhook route', () => {
 
     expect(res.status).toBe(202);
     expect(res.body.status).toBe('accepted');
-    expect(mockQueue.add).toHaveBeenCalledWith(
-      'github-event',
+    expect(mockEnqueueJob).toHaveBeenCalledWith(
+      expect.stringContaining('github'),
       expect.objectContaining({
         event: expect.objectContaining({
           source: 'github',
@@ -221,7 +226,7 @@ describe('GitHub webhook route', () => {
         }),
         env: 'int',
       }),
-      expect.any(Object)
+      expect.any(String)
     );
   });
 
@@ -238,18 +243,18 @@ describe('GitHub webhook route', () => {
       });
 
     expect(res.status).toBe(202);
-    expect(mockQueue.add).toHaveBeenCalledTimes(1);
+    expect(mockEnqueueJob).toHaveBeenCalledTimes(1);
   });
 
   it('returns 202 for minimal payload', async () => {
     const res = await request(app).post('/webhooks/github').send({});
 
     expect(res.status).toBe(202);
-    expect(mockQueue.add).toHaveBeenCalledTimes(1);
+    expect(mockEnqueueJob).toHaveBeenCalledTimes(1);
   });
 
-  it('returns 500 when queue.add fails', async () => {
-    mockQueue.add.mockRejectedValue(new Error('Queue error'));
+  it('returns 500 when enqueueJob fails', async () => {
+    mockEnqueueJob.mockRejectedValue(new Error('Queue error'));
 
     const res = await request(app).post('/webhooks/github').send({ action: 'opened' });
 
@@ -259,12 +264,12 @@ describe('GitHub webhook route', () => {
 });
 
 describe('Datadog webhook route', () => {
-  let mockQueue: ReturnType<typeof createMockQueue>;
   let app: express.Express;
 
   beforeEach(() => {
-    mockQueue = createMockQueue();
-    app = createTestApp(createDatadogRouter(mockQueue as never));
+    mockEnqueueJob.mockClear();
+    mockEnqueueJob.mockResolvedValue('test-job-id');
+    app = createTestApp(createDatadogRouter());
   });
 
   it('returns 202 for valid payload', async () => {
@@ -278,8 +283,8 @@ describe('Datadog webhook route', () => {
     expect(res.status).toBe(202);
     expect(res.body.status).toBe('accepted');
     expect(res.body.eventId).toBe('alert-001');
-    expect(mockQueue.add).toHaveBeenCalledWith(
-      'datadog-event',
+    expect(mockEnqueueJob).toHaveBeenCalledWith(
+      expect.stringContaining('datadog'),
       expect.objectContaining({
         event: expect.objectContaining({
           source: 'datadog',
@@ -288,7 +293,7 @@ describe('Datadog webhook route', () => {
         }),
         env: 'int',
       }),
-      expect.any(Object)
+      expect.any(String)
     );
   });
 
@@ -308,8 +313,8 @@ describe('Datadog webhook route', () => {
     });
 
     expect(res.status).toBe(202);
-    expect(mockQueue.add).toHaveBeenCalledWith(
-      'datadog-event',
+    expect(mockEnqueueJob).toHaveBeenCalledWith(
+      expect.stringContaining('datadog'),
       expect.objectContaining({
         event: expect.objectContaining({
           type: 'alert',
@@ -317,7 +322,7 @@ describe('Datadog webhook route', () => {
         }),
         env: 'int',
       }),
-      expect.any(Object)
+      expect.any(String)
     );
   });
 
@@ -330,20 +335,20 @@ describe('Datadog webhook route', () => {
       });
 
     expect(res.status).toBe(202);
-    expect(mockQueue.add).toHaveBeenCalledWith(
-      'datadog-event',
+    expect(mockEnqueueJob).toHaveBeenCalledWith(
+      expect.stringContaining('datadog'),
       expect.objectContaining({
         event: expect.objectContaining({
           service: 'api-gateway',
         }),
         env: 'int',
       }),
-      expect.any(Object)
+      expect.any(String)
     );
   });
 
-  it('returns 500 when queue.add fails', async () => {
-    mockQueue.add.mockRejectedValue(new Error('Queue error'));
+  it('returns 500 when enqueueJob fails', async () => {
+    mockEnqueueJob.mockRejectedValue(new Error('Queue error'));
 
     const res = await request(app).post('/webhooks/datadog').send({
       title: 'Alert',

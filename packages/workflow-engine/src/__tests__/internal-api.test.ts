@@ -73,10 +73,6 @@ vi.mock('../utils/wiki-knowledge', () => ({
   })),
 }));
 
-vi.mock('../queue/connection', () => ({
-  createRedisConnection: vi.fn().mockReturnValue({}),
-}));
-
 vi.mock('../utils/preview-manager', () => ({
   PreviewManager: vi.fn().mockImplementation(() => ({
     startPreview: vi.fn().mockResolvedValue({
@@ -84,6 +80,12 @@ vi.mock('../utils/preview-manager', () => ({
       preview: { webUrl: 'http://localhost:5001', apiUrl: 'http://localhost:5002', status: 'running', webPort: 5001, apiPort: 5002 },
     }),
   })),
+  getPreviewManager: vi.fn().mockReturnValue({
+    startPreview: vi.fn().mockResolvedValue({
+      success: true,
+      preview: { webUrl: 'http://localhost:5001', apiUrl: 'http://localhost:5002', status: 'running', webPort: 5001, apiPort: 5002 },
+    }),
+  }),
 }));
 
 vi.mock('@rtb-ai-hub/shared', async () => {
