@@ -44,7 +44,7 @@ import {
   type FigmaContext,
 } from '../utils/figma-context';
 import { loadComponentMapping, formatMappedComponents } from '../utils/component-mapping';
-import { jiraQueue } from '../queue/queues';
+import { sendToJiraQueue } from '../queue/queues';
 import { createDebateEngine } from '../debate/engine';
 import { createDebateStore } from '../debate/debate-store';
 
@@ -235,11 +235,10 @@ export async function processFigmaToJira(
           payload: {},
         };
 
-        await jiraQueue.add(`jira_${generateId('job')}`, {
-          event: syntheticEvent,
-          userId,
-          env,
-        });
+        await sendToJiraQueue(
+          { event: syntheticEvent, userId, env },
+          { jobId: `jira_${generateId('job')}` }
+        );
 
         logger.info(
           { taskKey: taskResult.result.data.key, env },

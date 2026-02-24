@@ -1,5 +1,5 @@
 import { createLogger, FEATURE_FLAGS } from '@rtb-ai-hub/shared';
-import { createWorkers } from './queue';
+import { startBoss, stopBoss, registerWorkers } from './queue';
 import { getRepoManager } from './utils/repo-manager';
 import { startBranchPoller, stopBranchPoller } from './utils/branch-poller';
 import { handleInternalRequest, getInternalRoutes } from './internal-api';
@@ -40,8 +40,9 @@ async function startup() {
   const repoManager = getRepoManager();
   await repoManager.initialize();
 
-  logger.info('Starting workflow engine workers...');
-  const workers = createWorkers();
+  logger.info('Starting pg-boss and registering workers...');
+  const boss = await startBoss();
+  await registerWorkers(boss);
 
   if (FEATURE_FLAGS.LOCAL_POLLING_ENABLED) {
     logger.info('Starting branch poller...');
@@ -51,14 +52,8 @@ async function startup() {
   logger.info('Workflow engine workers started successfully');
 
   process.on('SIGTERM', async () => {
-    logger.info('SIGTERM received, closing workers...');
-    await Promise.all([
-      workers.figmaWorker.close(),
-      workers.jiraWorker.close(),
-      workers.githubWorker.close(),
-      workers.datadogWorker.close(),
-      stopBranchPoller(),
-    ]);
+    logger.info('SIGTERM received, shutting down...');
+    await Promise.all([stopBoss(), stopBranchPoller()]);
     process.exit(0);
   });
 }
