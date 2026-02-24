@@ -228,14 +228,18 @@ describe('Webhook Signature Verification', () => {
   });
 
   describe('verifyFigmaSignature', () => {
-    it('passes when header matches secret directly (simple comparison)', async () => {
+    it('passes when HMAC signature matches', async () => {
       const secret = 'figma-webhook-secret-value';
       process.env.FIGMA_WEBHOOK_SECRET = secret;
 
       const { verifyFigmaSignature } = await import('../middleware/webhook-signature');
 
+      const body = Buffer.from('{"event":"test"}');
+      const expectedSig = crypto.createHmac('sha256', secret).update(body).digest('hex');
+
       const req = createMockReq({
-        headers: { 'x-figma-signature': secret },
+        headers: { 'x-figma-signature': expectedSig },
+        rawBody: body,
       });
       const res = createMockRes();
       const next = vi.fn();
@@ -245,13 +249,14 @@ describe('Webhook Signature Verification', () => {
       expect(next).toHaveBeenCalledTimes(1);
     });
 
-    it('rejects when header does not match secret', async () => {
+    it('rejects when HMAC signature does not match', async () => {
       process.env.FIGMA_WEBHOOK_SECRET = 'figma-webhook-secret-value';
 
       const { verifyFigmaSignature } = await import('../middleware/webhook-signature');
 
       const req = createMockReq({
         headers: { 'x-figma-signature': 'wrong-value' },
+        rawBody: Buffer.from('{"event":"test"}'),
       });
       const res = createMockRes();
       const next = vi.fn();

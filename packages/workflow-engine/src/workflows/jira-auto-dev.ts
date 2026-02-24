@@ -320,7 +320,7 @@ export async function processJiraAutoDev(
         worktreePath: workDir,
         prompt: opsPrompt,
         claudeMdContent: `# Ops Verification Task\n\nVerify ${env} environment readiness for ${issueKey}.`,
-        mcpServers: buildMcpServers({ env, allowedServices: ['RTC'] }),
+        mcpServers: buildMcpServers({ env, allowedServices: [] }),
         allowedTools: opsExtendedTools,
         maxTurns: 10,
         timeoutMs: 120000,

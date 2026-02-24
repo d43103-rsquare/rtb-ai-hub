@@ -146,7 +146,7 @@ export class WorktreeManager {
       }
     }
 
-    info.status = allPassed ? 'active' : 'active'; // stays active for retry
+    info.status = allPassed ? 'active' : 'failed';
     info.lastActivityAt = new Date().toISOString();
     await this.registry.set(issueKey, info);
 

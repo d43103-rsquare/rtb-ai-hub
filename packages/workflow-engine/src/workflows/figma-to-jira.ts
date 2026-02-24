@@ -39,6 +39,7 @@ import {
   serializeFigmaContext,
   type FigmaContext,
 } from '../utils/figma-context';
+import { loadComponentMapping, formatMappedComponents } from '../utils/component-mapping';
 import { jiraQueue } from '../queue/queues';
 import { createDebateEngine } from '../debate/engine';
 import { createDebateStore } from '../debate/debate-store';
@@ -126,7 +127,7 @@ export async function processFigmaToJira(
 
     // ─── Step 3: Design Debate (PM, UX Designer, UI Developer) ──────────────
 
-    const figmaDataSection = buildFigmaDataSection(figmaContext);
+    const { section: figmaDataSection, mappingSection } = await buildFigmaDataSection(figmaContext);
 
     const debateConfig: DebateConfig = {
       topic: [
@@ -165,6 +166,9 @@ export async function processFigmaToJira(
         description: figmaDataSection,
         env,
         figmaContext: figmaContext ? serializeFigmaContext(figmaContext) : undefined,
+        additionalContext: mappingSection
+          ? { 'Team Component Mapping': mappingSection }
+          : undefined,
       },
       budgetUsd: parseFloat(process.env.DEBATE_COST_LIMIT_USD || '3'),
     };
@@ -307,12 +311,15 @@ export async function processFigmaToJira(
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function buildFigmaDataSection(figmaContext: FigmaContext | null): string {
+async function buildFigmaDataSection(figmaContext: FigmaContext | null): Promise<{ section: string; mappingSection: string | null }> {
   if (!figmaContext) {
-    return '(No actual Figma design data available — analyze based on file name and event type only)';
+    return {
+      section: '(No actual Figma design data available — analyze based on file name and event type only)',
+      mappingSection: null,
+    };
   }
 
-  return [
+  const sections = [
     `## Actual Figma Design Data (from Figma API)`,
     ``,
     `### Components Found (${figmaContext.components.length}):`,
@@ -330,18 +337,37 @@ function buildFigmaDataSection(figmaContext: FigmaContext | null): string {
     '```',
     figmaContext.nodeTreeSummary || 'Not available',
     '```',
-  ].join('\n');
+  ];
+
+  // Append team component mapping if available
+  let mappingSectionText: string | null = null;
+  const mapping = await loadComponentMapping();
+  if (mapping && mapping.mappings.length > 0) {
+    mappingSectionText = formatMappedComponents(figmaContext.components, mapping.mappings);
+    if (mappingSectionText) {
+      sections.push('', mappingSectionText);
+    }
+  }
+
+  return { section: sections.join('\n'), mappingSection: mappingSectionText };
 }
 
-function extractAnalysisFromDebate(debateSession: any): FigmaAnalysis {
+function extractAnalysisFromDebate(debateSession: { turns?: Array<{ artifacts?: Array<{ content?: string }> }>; outcome?: { decision?: string } }): FigmaAnalysis {
+  if (!debateSession?.turns) {
+    return {
+      story: { summary: 'Figma Design Update', description: 'No debate data available' },
+      tasks: [],
+    };
+  }
+
   // Try to extract from debate artifacts first
   const allArtifacts = debateSession.turns
-    .flatMap((t: any) => t.artifacts || [])
-    .filter((a: any) => a.content);
+    .flatMap((t) => t.artifacts || [])
+    .filter((a) => a.content);
 
   // Check outcome decision for JSON
   const sources = [
-    ...allArtifacts.map((a: any) => a.content),
+    ...allArtifacts.map((a) => a.content as string),
     debateSession.outcome?.decision || '',
   ];
 

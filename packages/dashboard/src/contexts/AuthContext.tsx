@@ -41,8 +41,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         `width=${width},height=${height},left=${left},top=${top}`
       );
 
+      const maxWaitMs = 5 * 60 * 1000;
+      const startTime = Date.now();
       const checkPopup = setInterval(() => {
-        if (!popup || popup.closed) {
+        if (!popup || popup.closed || Date.now() - startTime > maxWaitMs) {
           clearInterval(checkPopup);
           checkAuth();
         }

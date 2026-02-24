@@ -79,40 +79,11 @@ export const verifyJiraSignature = createHmacVerifier({
   envVar: 'JIRA_WEBHOOK_SECRET',
 });
 
-export function verifyFigmaSignature(req: Request, res: Response, next: NextFunction): void {
-  const secret = process.env.FIGMA_WEBHOOK_SECRET;
-
-  if (!secret) {
-    logger.warn(
-      'FIGMA_WEBHOOK_SECRET not set — skipping Figma webhook signature verification (dev mode)'
-    );
-    next();
-    return;
-  }
-
-  const signature = req.headers['x-figma-signature'] as string | undefined;
-
-  if (!signature) {
-    logger.warn({ provider: 'Figma' }, 'Missing webhook signature header');
-    res.status(401).json({ error: 'Invalid webhook signature' });
-    return;
-  }
-
-  const sigBuffer = Buffer.from(signature, 'utf8');
-  const secretBuffer = Buffer.from(secret, 'utf8');
-
-  if (
-    sigBuffer.length !== secretBuffer.length ||
-    !crypto.timingSafeEqual(sigBuffer, secretBuffer)
-  ) {
-    logger.warn({ provider: 'Figma' }, 'Webhook signature verification failed');
-    res.status(401).json({ error: 'Invalid webhook signature' });
-    return;
-  }
-
-  logger.debug({ provider: 'Figma' }, 'Webhook signature verified successfully');
-  next();
-}
+export const verifyFigmaSignature = createHmacVerifier({
+  provider: 'Figma',
+  headerName: 'X-Figma-Signature',
+  envVar: 'FIGMA_WEBHOOK_SECRET',
+});
 
 export const verifyDatadogSignature = createHmacVerifier({
   provider: 'Datadog',

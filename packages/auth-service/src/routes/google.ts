@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createLogger } from '@rtb-ai-hub/shared';
+import { createLogger, getEnv } from '@rtb-ai-hub/shared';
 import { GoogleAuthManager } from '../google/google-auth';
 import { SessionManager } from '../utils/session';
 
@@ -53,11 +53,11 @@ export function createGoogleRoutes(googleAuth: GoogleAuthManager, sessionManager
         maxAge: 30 * 24 * 60 * 60 * 1000,
       });
 
-      const redirectUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
+      const redirectUrl = getEnv('DASHBOARD_URL', 'http://localhost:3000');
       res.redirect(`${redirectUrl}/dashboard?login=success`);
     } catch (error) {
       logger.error({ error }, 'Google callback failed');
-      const redirectUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
+      const redirectUrl = getEnv('DASHBOARD_URL', 'http://localhost:3000');
       res.redirect(`${redirectUrl}/login?error=auth_failed`);
     }
   });
