@@ -1,3 +1,5 @@
+> **Status: PARTIALLY_IMPLEMENTED** — 시스템 프롬프트가 debate engine에서 부분 적용됨
+
 # OpenClaw Agent System Prompts
 
 ## 공통 기본 지침 (All Agents)

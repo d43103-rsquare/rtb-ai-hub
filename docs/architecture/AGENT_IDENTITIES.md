@@ -1,3 +1,5 @@
+> **Status: PARTIALLY_IMPLEMENTED** — 에이전트 페르소나가 debate engine에서 부분 적용됨
+
 # OpenClaw Agent Identity Definitions
 
 ## 개요

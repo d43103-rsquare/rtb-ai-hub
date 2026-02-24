@@ -1,3 +1,5 @@
+> **Status: DESIGN_ONLY** — 4-Layer 아키텍처 설계 문서. 실제 구현은 debate engine + workflow engine 기반으로 다른 형태로 구현됨.
+
 # Communication Coordinator Architecture Design
 
 > 💡 **이 문서는 기술 아키텍처 설계서입니다.**  

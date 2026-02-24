@@ -1,3 +1,5 @@
+> **Status: DESIGN_ONLY** — 설계 문서만 존재, 실제 DB 스키마는 `packages/shared/src/db/schema.ts` 참조
+
 # Data Models & API Design
 
 ## 1. 통합 데이터 모델

@@ -86,12 +86,12 @@ Webhook (Figma/Jira/GitHub/Datadog) → webhook-listener → BullMQ queue (Redis
 
 ### Key Modules in workflow-engine
 
-- **`workflows/`** — 5 workflow implementations (figma-to-jira, jira-auto-dev, auto-review, deploy-monitor, incident-to-jira)
+- **`workflows/`** — 6 workflow implementations (figma-to-jira, jira-auto-dev, auto-review, deploy-monitor, incident-to-jira, target-deploy)
 - **`debate/`** — Multi-turn debate engine where 7 AI agent personas collaborate (PM, System Planner, UX Designer, UI Developer, Backend Developer, QA, DevOps)
 - **`claude-code/`** — Claude Code CLI integration: executor, context builder, MCP config builder, result parser
 - **`harness/`** — Execution guard (tool allowlists, budgets), policy engine (env-specific rules), observer (logging, anomaly detection)
 - **`worktree/`** — Git worktree lifecycle management per Jira issue
-- **`clients/`** — Anthropic SDK client, native MCP client, database client
+- **`clients/`** — Multi-provider AI adapters (Claude, OpenAI, Gemini), provider router, native MCP client, database client
 - **`utils/`** — Wiki knowledge injection, context engine, local git ops, PR builder, preview manager, CI runner
 
 ### Multi-Environment Support
@@ -100,7 +100,7 @@ The system supports 3 logical environments (`int`/`stg`/`prd`) on a single infra
 
 ### Feature Flags
 
-Defined in `packages/shared/src/constants.ts` as `FEATURE_FLAGS`. Key flags: `DEBATE_ENABLED`, `CLAUDE_CODE_ENABLED`, `WORKTREE_ENABLED`, `TARGET_CI_ENABLED`, `PREVIEW_ENABLED`.
+Defined in `packages/shared/src/constants.ts` as `FEATURE_FLAGS`. Key flags: `DEBATE_ENABLED`, `CLAUDE_CODE_ENABLED`, `WORKTREE_ENABLED`, `TARGET_CI_ENABLED`, `TARGET_CD_ENABLED`, `LOCAL_POLLING_ENABLED`, `PREVIEW_ENABLED`, `IMPACT_ANALYSIS_ENABLED`, `DECISION_JOURNAL_ENABLED`.
 
 ## Conventions
 

@@ -1,3 +1,5 @@
+> **Status: DESIGN_ONLY** — 설계 문서만 존재, 구현되지 않음
+
 # Communication Pattern Engine Design
 
 ## 개요

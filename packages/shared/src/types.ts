@@ -18,14 +18,6 @@ export type FigmaWebhookEvent = {
   payload: Record<string, any>;
 };
 
-export enum JiraIssueType {
-  STORY = 'Story',
-  TASK = 'Task',
-  SUBTASK = 'Sub-task',
-  BUG = 'Bug',
-  EPIC = 'Epic',
-}
-
 export type JiraComponent = {
   id: string;
   name: string;
@@ -183,44 +175,3 @@ export type MCPToolCall = {
   error?: string;
 };
 
-// Dashboard Metrics Types
-export type TodayMetrics = {
-  date: string;
-  figmaToJira: number;
-  jiraAutoDev: number;
-  autoReview: number;
-  incidentResponse: number;
-  successRate: number;
-  failureCount: number;
-};
-
-export type InProgressWorkflow = {
-  id: string;
-  type: WorkflowType;
-  startedAt: Date;
-  progress: number; // 0-100
-  description: string;
-};
-
-export type AICostMetrics = {
-  date: string;
-  heavy: number;
-  medium: number;
-  light: number;
-  total: number;
-};
-
-export type WeeklyProductivityMetrics = {
-  week: string;
-  storyPointsCompleted: number;
-  reviewTimeSaved: number; // hours
-  avgFigmaToPRTime: number; // hours
-  avgIncidentResponseTime: number; // minutes
-};
-
-export type DashboardMetrics = {
-  today: TodayMetrics;
-  inProgress: InProgressWorkflow[];
-  aiCosts: AICostMetrics;
-  weekly: WeeklyProductivityMetrics;
-};

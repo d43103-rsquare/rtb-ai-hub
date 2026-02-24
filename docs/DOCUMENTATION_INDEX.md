@@ -156,7 +156,8 @@ Step 3: 도입 계획
 | ---------------------------------------- | -------- | ----------------------------- | ------ |
 | [CONCEPTS.md](./CONCEPTS.md)             | 모두     | 핵심 개념 설명서 (비개발자용) | ⭐⭐⭐ |
 | [NON_DEV_GUIDE.md](./NON_DEV_GUIDE.md)   | 비개발자 | Slack 사용 가이드             | ⭐⭐   |
-| [SETUP_COMPLETE.md](./SETUP_COMPLETE.md) | 모두     | 현재 구축 상태                | ⭐     |
+| [CONCEPTS-presentation.md](./CONCEPTS-presentation.md) | 모두 | 개념 프레젠테이션 | ⭐ |
+| [COORDINATOR_SCENARIO_TESTING.md](./COORDINATOR_SCENARIO_TESTING.md) | 개발자 | Coordinator 시나리오 테스트 | ⭐ |
 
 ### 2. 설치 및 환경 설정
 
@@ -172,7 +173,6 @@ Step 3: 도입 계획
 | 문서                                                                                                  | 대상      | 설명              | 중요도 |
 | ----------------------------------------------------------------------------------------------------- | --------- | ----------------- | ------ |
 | [COMMUNICATION_COORDINATOR_ARCHITECTURE.md](./architecture/COMMUNICATION_COORDINATOR_ARCHITECTURE.md) | 개발자    | 4-Layer 아키텍처  | ⭐⭐⭐ |
-| [OPENCLAW_AGENT_DIGITAL_TWINS.md](./architecture/OPENCLAW_AGENT_DIGITAL_TWINS.md)                     | 개발자    | 7-Agent 협업 구조 | ⭐⭐⭐ |
 | [AGENT_IDENTITIES.md](./architecture/AGENT_IDENTITIES.md)                                             | 모두      | 에이전트 페르소나 | ⭐⭐   |
 | [AGENT_SYSTEM_PROMPTS.md](./architecture/AGENT_SYSTEM_PROMPTS.md)                                     | 개발자    | 시스템 프롬프트   | ⭐⭐   |
 | [AGENT_SCENARIOS.md](./architecture/AGENT_SCENARIOS.md)                                               | 모두      | 테스트 시나리오   | ⭐⭐   |
@@ -180,7 +180,6 @@ Step 3: 도입 계획
 | [ROLE_ADAPTER_LAYER.md](./architecture/ROLE_ADAPTER_LAYER.md)                                         | 개발자    | 역할 변환 계층    | ⭐     |
 | [WIKI_AND_ONBOARDING.md](./architecture/WIKI_AND_ONBOARDING.md)                                       | 개발자    | Wiki 연동         | ⭐     |
 | [DATA_MODELS_AND_API.md](./architecture/DATA_MODELS_AND_API.md)                                       | 개발자    | DB 스키마 & API   | ⭐     |
-| [OPENCLAW_GATEWAY_INTEGRATION.md](./architecture/OPENCLAW_GATEWAY_INTEGRATION.md)                     | 개발자    | Gateway 통신      | ⭐     |
 | [IMPLEMENTATION_ROADMAP.md](./architecture/IMPLEMENTATION_ROADMAP.md)                                 | PM/개발자 | 8주 구현 계획     | ⭐     |
 | [INTEGRATION_AND_EXTENSION.md](./architecture/INTEGRATION_AND_EXTENSION.md)                           | 개발자    | 확장 가이드       | ⭐     |
 
@@ -201,15 +200,7 @@ Step 3: 도입 계획
 | [C3_MEETING_PREP.md](./designs/C3_MEETING_PREP.md)                         | 개발자 | 회의 준비 자동화 | ⭐⭐   |
 | [MCP_MIGRATION.md](./designs/MCP_MIGRATION.md)                             | 개발자 | MCP 마이그레이션 | ⭐     |
 
-### 5. OpenClaw Integration
-
-| 문서                                                                      | 대상   | 설명              | 중요도 |
-| ------------------------------------------------------------------------- | ------ | ----------------- | ------ |
-| [OPENCLAW_INTEGRATION.md](./OPENCLAW_INTEGRATION.md)                      | 개발자 | OpenClaw 개념     | ⭐⭐   |
-| [infrastructure/openclaw/SETUP.md](../infrastructure/openclaw/SETUP.md)   | 개발자 | Slack App 설정    | ⭐⭐   |
-| [infrastructure/openclaw/README.md](../infrastructure/openclaw/README.md) | 개발자 | 설정 커스터마이징 | ⭐     |
-
-### 6. 배포 및 운영 (Deployment)
+### 5. 배포 및 운영 (Deployment)
 
 | 문서                                                                                      | 대상      | 설명                              | 중요도 |
 | ----------------------------------------------------------------------------------------- | --------- | --------------------------------- | ------ |
@@ -218,14 +209,25 @@ Step 3: 도입 계획
 | [deployment/MULTI_ACCOUNT_AWS.md](./deployment/MULTI_ACCOUNT_AWS.md)                     | DevOps    | IAM 크로스 계정·IRSA·EKS RBAC    | ⭐⭐   |
 | [deployment/OPERATIONS.md](./deployment/OPERATIONS.md)                                   | DevOps    | 운영·모니터링·장애 처리           | ⭐⭐   |
 
-### 7. 기술 참고
+### 6. 기술 참고
 
 | 문서                                                       | 대상   | 설명            | 중요도 |
 | ---------------------------------------------------------- | ------ | --------------- | ------ |
 | [IMPLEMENTATION_SUMMARY.md](../IMPLEMENTATION_SUMMARY.md)  | 개발자 | 구현 세부사항   | ⭐⭐⭐ |
 | [GIT_BRANCH_STRATEGY.md](./GIT_BRANCH_STRATEGY.md)         | 개발자 | Git 브랜치 전략 | ⭐⭐   |
-| [KNOWN_ISSUES.md](./KNOWN_ISSUES.md)                       | 개발자 | 알려진 이슈     | ⭐     |
+| [DOCUMENTATION_UPDATE_SUMMARY.md](./DOCUMENTATION_UPDATE_SUMMARY.md) | 개발자 | 문서 업데이트 요약 | ⭐ |
+| [openapi.yaml](./openapi.yaml)                              | 개발자 | OpenAPI 스펙    | ⭐⭐   |
 | [WAVE_PARALLEL_EXECUTION.md](./WAVE_PARALLEL_EXECUTION.md) | 개발자 | Wave 병렬 실행  | ⭐     |
+
+### 7. 설계 계획 (Plans)
+
+| 문서                                                                                           | 대상      | 설명                          | 중요도 |
+| ---------------------------------------------------------------------------------------------- | --------- | ----------------------------- | ------ |
+| [plans/README.md](./plans/README.md)                                                           | 개발자    | Plans 디렉토리 안내           | ⭐⭐   |
+| [plans/2026-02-18-multi-provider-agent-design.md](./plans/2026-02-18-multi-provider-agent-design.md) | 개발자 | Multi-provider Agent 설계 | ⭐⭐ |
+| [plans/2026-02-18-multi-provider-agent-impl.md](./plans/2026-02-18-multi-provider-agent-impl.md)     | 개발자 | Multi-provider Agent 구현 | ⭐⭐ |
+| [plans/2026-02-23-figma-ready-for-dev-poc-design.md](./plans/2026-02-23-figma-ready-for-dev-poc-design.md) | 개발자 | Figma Ready for Dev POC 설계 | ⭐⭐ |
+| [plans/2026-02-23-figma-ready-for-dev-poc.md](./plans/2026-02-23-figma-ready-for-dev-poc.md)   | 개발자    | Figma Ready for Dev POC 계획  | ⭐⭐   |
 
 ### 8. Claude Code 커맨드 & 에이전트 팀
 
@@ -245,7 +247,7 @@ Step 3: 도입 계획
 **관련 코드**:
 - `packages/workflow-engine/src/utils/task-folder.ts` — Jira 이슈별 `docs/plans/{key}/` 폴더 자동 생성 ([산출물 구조 안내](./plans/README.md))
 - `packages/shared/src/types.ts` — `WorkflowStage` enum (9단계 상태머신: analyse→design→await-design-approval→develop→review→test→ops→await-ops-approval→done)
-- `packages/workflow-engine/src/utils/ops-verifier.ts` — 배포 전 DB 마이그레이션·ECS·CloudWatch·연결성 검증 (활성화: `OPS_VERIFICATION_ENABLED=true`, prd 환경 실패 시 자동 차단)
+- `packages/workflow-engine/src/utils/ops-verifier.ts` — 배포 전 DB 마이그레이션·ECS·CloudWatch·연결성 검증 (환경변수 `OPS_VERIFICATION_ENABLED=true`로 활성화, `FEATURE_FLAGS`가 아닌 `process.env`에서 직접 참조, prd 환경 실패 시 자동 차단)
 - `packages/workflow-engine/src/utils/pause-checker.ts` — `/pause` 일시정지 체크
 - `packages/webhook-listener/src/routes/workflows.ts` — `POST /api/workflows/:id/pause|resume`
 
@@ -337,7 +339,7 @@ curl http://localhost:4000/health
 ### 주요 엔드포인트
 
 - **Webhook Listener**: http://localhost:4000
-- **Workflow Engine**: http://localhost:3001
+- **Workflow Engine**: BullMQ 워커 (웹 포트 없음)
 - **Dashboard**: http://localhost:5173
 - **PostgreSQL**: localhost:5432
 - **Redis**: localhost:6379
@@ -358,7 +360,7 @@ docs/
 └── designs/             # 9개 기능 설계
 
 infrastructure/
-└── openclaw/            # OpenClaw 설정
+└── docker/              # Docker 설정
 ```
 
 ---

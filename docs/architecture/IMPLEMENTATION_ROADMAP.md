@@ -1,3 +1,5 @@
+> **Status: NOT_STARTED** — 이 로드맵의 OpenClaw 기반 구현은 시작되지 않음. 현재 시스템은 다른 아키텍처로 구현됨.
+
 # Communication Coordinator 구현 로드맵
 
 ## 개요
