@@ -67,3 +67,6 @@ coverage/
 
 # Git worktrees
 .worktrees/
+
+# Mock Jira data
+packages/mock-jira/data/*.json

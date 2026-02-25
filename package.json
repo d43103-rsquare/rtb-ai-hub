@@ -47,7 +47,8 @@
     "hub:ci:fix": "bash scripts/ci-local.sh --fix",
     "hub:deploy": "bash scripts/deploy-local.sh",
     "hub:deploy:dry": "bash scripts/deploy-local.sh --dry-run",
-    "verify-env": "tsx scripts/verify-env.ts"
+    "verify-env": "tsx scripts/verify-env.ts",
+    "dev:mock-jira": "pnpm --filter @rtb-ai-hub/mock-jira run dev"
   },
   "engines": {
     "node": ">=20.0.0",

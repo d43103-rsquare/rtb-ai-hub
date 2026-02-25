@@ -4,4 +4,5 @@ export default [
   'packages/auth-service',
   'packages/workflow-engine',
   'packages/dashboard',
+  'packages/mock-jira',
 ];
