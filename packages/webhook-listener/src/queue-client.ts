@@ -24,7 +24,7 @@ export async function stopQueueClient(): Promise<void> {
 export async function enqueueJob(queue: string, data: unknown, jobId: string): Promise<string | null> {
   const b = await getQueueClient();
   return b.send(queue, data as object, {
-    id: jobId,
+    singletonKey: jobId,
     retryLimit: DEFAULT_JOB_OPTIONS.attempts,
     retryDelay: DEFAULT_JOB_OPTIONS.backoff.delay / 1000,
     retryBackoff: true,

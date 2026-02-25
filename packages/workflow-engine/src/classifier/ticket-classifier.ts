@@ -18,7 +18,7 @@ export function classifyTicket(event: JiraWebhookEvent): TicketCategory {
   const issueType = (event.issueType || '').toLowerCase();
   if (BUG_ISSUE_TYPES.includes(issueType)) return TicketCategory.BUG;
   if (FEATURE_ISSUE_TYPES.includes(issueType)) {
-    // Labels and summary can still override generic feature issue types (e.g. Task)
+    // Generic types like Task can be overridden by bug labels or summary patterns
     const labels = (event.labels || []).map((l) => l.toLowerCase());
     if (labels.some((l) => BUG_LABELS.includes(l))) return TicketCategory.BUG;
     const summary = event.summary || '';

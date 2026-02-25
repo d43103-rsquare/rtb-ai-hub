@@ -9,7 +9,6 @@ import {
   setGate,
   setArtifact,
   cleanWorkspace,
-  type SimulatedIssue,
   type GateDecision,
 } from './issue-store';
 import { SimulatedHubClient } from './hub-client';
@@ -632,7 +631,6 @@ TypeError: Cannot destructure property 'name' of undefined
   });
 
   it('Step 1: 티켓 분류 — Bug으로 판별', () => {
-    const issue = readIssue(ISSUE_KEY);
     // Simulate classification
     addTimeline(ISSUE_KEY, {
       agent: 'classifier',

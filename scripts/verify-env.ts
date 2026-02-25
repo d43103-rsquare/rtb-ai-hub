@@ -2,7 +2,7 @@
 // Environment verification script for the bug-fix workflow.
 // Checks required env vars, CLI tools, infrastructure, and repository status.
 
-import { execFileSync, execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
