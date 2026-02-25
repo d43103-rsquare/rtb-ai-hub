@@ -74,6 +74,7 @@ export type WebhookEvent =
 export enum WorkflowType {
   FIGMA_TO_JIRA = 'figma-to-jira',
   JIRA_AUTO_DEV = 'jira-auto-dev',
+  BUG_FIX = 'bug-fix',
   AUTO_REVIEW = 'auto-review',
   DEPLOY_MONITOR = 'deploy-monitor',
   INCIDENT_TO_JIRA = 'incident-to-jira',
