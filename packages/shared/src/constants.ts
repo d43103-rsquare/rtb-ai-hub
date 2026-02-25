@@ -26,7 +26,10 @@ export type McpServiceKey = 'JIRA' | 'FIGMA' | 'GITHUB' | 'DATADOG';
 
 export const NATIVE_MCP_ENDPOINTS: Record<McpServiceKey, string> = {
   GITHUB: process.env.NATIVE_MCP_GITHUB_ENDPOINT || 'https://api.githubcopilot.com/mcp/',
-  JIRA: process.env.NATIVE_MCP_JIRA_ENDPOINT || 'http://localhost:3000',
+  JIRA:
+    process.env.MOCK_JIRA === 'true'
+      ? `http://localhost:${process.env.MOCK_JIRA_PORT || '3001'}`
+      : process.env.NATIVE_MCP_JIRA_ENDPOINT || 'http://localhost:3000',
   FIGMA: process.env.NATIVE_MCP_FIGMA_ENDPOINT || 'https://mcp.figma.com/mcp',
   DATADOG: process.env.NATIVE_MCP_DATADOG_ENDPOINT || 'http://localhost:3000',
 };

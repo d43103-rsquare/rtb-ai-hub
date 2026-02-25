@@ -27,6 +27,15 @@ export default defineConfig({
         target: 'ws://localhost:4000',
         ws: true,
       },
+      ...(process.env.MOCK_JIRA === 'true'
+        ? {
+            '/mock-jira': {
+              target: `http://localhost:${process.env.MOCK_JIRA_PORT || '3001'}`,
+              changeOrigin: true,
+              rewrite: (path: string) => path.replace(/^\/mock-jira/, ''),
+            },
+          }
+        : {}),
     },
   },
   build: {
