@@ -46,7 +46,8 @@
     "hub:ci:quick": "bash scripts/ci-local.sh --quick",
     "hub:ci:fix": "bash scripts/ci-local.sh --fix",
     "hub:deploy": "bash scripts/deploy-local.sh",
-    "hub:deploy:dry": "bash scripts/deploy-local.sh --dry-run"
+    "hub:deploy:dry": "bash scripts/deploy-local.sh --dry-run",
+    "verify-env": "tsx scripts/verify-env.ts"
   },
   "engines": {
     "node": ">=20.0.0",
