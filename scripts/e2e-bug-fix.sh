@@ -145,6 +145,10 @@ fi
 if [ "${WEBHOOK_STATUS}" != "202" ]; then
   fail "Webhook status is ${WEBHOOK_STATUS} (expected 202)"
   echo "     Response: ${TRIGGER_BODY}"
+  info "Possible causes:"
+  echo "     - webhook-listener may have lost DB connection (restart with: pnpm dev:webhook)"
+  echo "     - pg-boss queue may not be initialized"
+  echo "     - Check webhook-listener logs for details"
   exit 1
 fi
 
