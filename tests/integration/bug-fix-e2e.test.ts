@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { MockJiraStore } from '../../packages/mock-jira/src/store';
 import type { Server } from 'http';
-import type { Express } from 'express';
 import path from 'path';
 
 const DATA_DIR = path.join(__dirname, '.data-bug-fix-e2e');
@@ -12,18 +11,13 @@ let baseUrl: string;
 
 describe('Bug Fix E2E: Mock Jira Integration', () => {
   beforeAll(async () => {
-    // Override WEBHOOK_LISTENER_URL to point at an unused port so the
-    // webhook trigger route always gets a connection-refused error.
-    // We must set this BEFORE the webhook-trigger module is loaded,
-    // because it captures the env var at module scope.
     process.env.WEBHOOK_LISTENER_URL = 'http://127.0.0.1:19999';
 
-    // Dynamic import so env var is captured correctly
     const { createApp } = await import('../../packages/mock-jira/src/app');
 
     store = new MockJiraStore(DATA_DIR);
     store.reset();
-    const app: Express = createApp(store);
+    const app = createApp(store);
 
     await new Promise<void>((resolve) => {
       server = app.listen(0, () => {
