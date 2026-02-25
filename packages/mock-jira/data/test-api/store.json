@@ -1,0 +1,46 @@
+{
+  "issues": [
+    {
+      "key": "TEST-1",
+      "id": "10001",
+      "fields": {
+        "issuetype": {
+          "name": "Task"
+        },
+        "status": {
+          "name": "Open"
+        },
+        "summary": "Comment on me",
+        "description": "",
+        "project": {
+          "key": "TEST"
+        },
+        "labels": [],
+        "priority": {
+          "name": "Medium"
+        },
+        "components": [],
+        "comment": {
+          "comments": [
+            {
+              "id": "1772015970514",
+              "body": "This is a test comment",
+              "author": {
+                "displayName": "Mock User",
+                "accountId": "mock-user-001"
+              },
+              "created": "2026-02-25T10:39:30.514Z",
+              "updated": "2026-02-25T10:39:30.514Z"
+            }
+          ]
+        },
+        "created": "2026-02-25T10:39:30.513Z",
+        "updated": "2026-02-25T10:39:30.514Z"
+      }
+    }
+  ],
+  "counters": {
+    "TEST": 1
+  },
+  "idCounter": 10001
+}
