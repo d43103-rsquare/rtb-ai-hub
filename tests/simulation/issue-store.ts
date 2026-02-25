@@ -28,6 +28,14 @@ export interface Artifacts {
   preview_url: string | null;
   test_plan: string | null;
   test_result: string | null;
+  // Bug-fix workflow artifacts
+  stack_trace: string | null;
+  related_files: string | null;
+  root_cause: string | null;
+  fix_description: string | null;
+  test_added: string | null;
+  gate_results: string | null;
+  claude_md: string | null;
 }
 
 export interface SimulatedIssue {
@@ -90,6 +98,13 @@ export function createIssue(data: {
       preview_url: null,
       test_plan: null,
       test_result: null,
+      stack_trace: null,
+      related_files: null,
+      root_cause: null,
+      fix_description: null,
+      test_added: null,
+      gate_results: null,
+      claude_md: null,
     },
     gates: { G1: null, G2: null, G3: null, G4: null },
   };

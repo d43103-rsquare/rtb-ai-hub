@@ -599,6 +599,237 @@ describe('Workflow Simulation: G1 Rejection → Resubmission', () => {
   });
 });
 
+describe('Workflow Simulation: Bug Fix (Happy Path)', () => {
+  const ISSUE_KEY = 'SIM-BUG-001';
+
+  it('Step 0: Bug 이슈가 접수됨', () => {
+    const issue = createIssue({
+      key: ISSUE_KEY,
+      summary: 'API returns 500 on empty payload',
+      description: `## Bug Report
+### Steps to reproduce
+1. Send POST /api/data with empty body
+2. Observe 500 Internal Server Error
+
+### Expected
+400 Bad Request with validation error
+
+### Actual
+500 with stack trace:
+\`\`\`
+TypeError: Cannot destructure property 'name' of undefined
+  at processData (src/handlers/data.ts:42)
+\`\`\`
+
+### Environment
+- Server: int
+- Endpoint: POST /api/data`,
+      priority: 'Critical',
+      labels: ['bug', 'api'],
+    });
+
+    expect(issue.status).toBe('Open');
+  });
+
+  it('Step 1: 티켓 분류 — Bug으로 판별', () => {
+    const issue = readIssue(ISSUE_KEY);
+    // Simulate classification
+    addTimeline(ISSUE_KEY, {
+      agent: 'classifier',
+      action: 'ticket_classification',
+      detail: 'issueType=Bug, labels=[bug, api] → TicketCategory.BUG',
+      result: 'Routed to bug-fix workflow',
+      statusChange: 'Open → In Analysis',
+    });
+    updateIssue(ISSUE_KEY, { status: 'In Analysis' });
+
+    const updated = readIssue(ISSUE_KEY);
+    expect(updated.status).toBe('In Analysis');
+  });
+
+  it('Step 2: 컨텍스트 수집 — 에러 로그, 스택 트레이스 추출', () => {
+    const issue = readIssue(ISSUE_KEY);
+
+    // Extract stack trace from description
+    const description = issue.description || '';
+    const codeBlockMatch = description.match(/```[\s\S]*?```/);
+    expect(codeBlockMatch).toBeTruthy();
+
+    setArtifact(
+      ISSUE_KEY,
+      'stack_trace',
+      "TypeError: Cannot destructure property 'name' of undefined at processData (src/handlers/data.ts:42)"
+    );
+    setArtifact(
+      ISSUE_KEY,
+      'related_files',
+      'src/handlers/data.ts, src/handlers/__tests__/data.test.ts'
+    );
+
+    addTimeline(ISSUE_KEY, {
+      agent: 'bug-fix-workflow',
+      action: 'context_collection',
+      detail: '스택 트레이스 추출, 관련 파일 식별 (src/handlers/data.ts:42)',
+      result: 'Root cause location: processData function, line 42',
+      statusChange: 'In Analysis',
+    });
+  });
+
+  it('Step 3: CLAUDE.md 생성 — Bug Fix Guide', () => {
+    const issue = readIssue(ISSUE_KEY);
+
+    // Simulate CLAUDE.md generation
+    const claudeMd = [
+      `# ${ISSUE_KEY} — Bug Fix Guide`,
+      `**Summary**: ${issue.summary}`,
+      '## Bug Report',
+      issue.description,
+      '## Stack Trace',
+      '```',
+      issue.artifacts.stack_trace,
+      '```',
+      '## Bug Fix Process',
+      '1. Root Cause Analysis',
+      '2. Fix Implementation',
+      '3. Regression Test',
+      '4. Verification',
+    ].join('\n');
+
+    setArtifact(ISSUE_KEY, 'claude_md', claudeMd);
+
+    addTimeline(ISSUE_KEY, {
+      agent: 'bug-fix-workflow',
+      action: 'claude_md_generation',
+      detail:
+        'Bug Fix Guide CLAUDE.md 생성 완료 (Root Cause Analysis + Regression Test 지침 포함)',
+      result: 'CLAUDE.md written to worktree',
+      statusChange: 'In Analysis',
+    });
+  });
+
+  it('Step 4: Claude Code 실행 — 원인 분석 + 수정 + 테스트', () => {
+    setArtifact(
+      ISSUE_KEY,
+      'root_cause',
+      'processData() assumes req.body is always defined. When empty payload is sent, destructuring fails.'
+    );
+    setArtifact(
+      ISSUE_KEY,
+      'fix_description',
+      'Added null check for req.body with 400 response for empty payloads'
+    );
+    setArtifact(ISSUE_KEY, 'test_added', 'test: POST /api/data with empty body returns 400');
+
+    addTimeline(ISSUE_KEY, {
+      agent: 'claude-code',
+      action: 'bug_fix_implementation',
+      detail: 'Claude Code가 원인 분석 → 수정 코드 생성 → 회귀 테스트 추가 완료',
+      result: 'Files changed: src/handlers/data.ts, src/handlers/__tests__/data.test.ts',
+      statusChange: 'In Analysis → In Development',
+    });
+
+    updateIssue(ISSUE_KEY, { status: 'In Development' });
+  });
+
+  it('Step 5: Quality Gates 통과', () => {
+    const gateResults = {
+      lint: { passed: true, durationMs: 3200 },
+      typecheck: { passed: true, durationMs: 8500 },
+      test: { passed: true, durationMs: 12000 },
+      build: { passed: true, durationMs: 15000 },
+    };
+
+    setArtifact(ISSUE_KEY, 'gate_results', JSON.stringify(gateResults));
+
+    addTimeline(ISSUE_KEY, {
+      agent: 'bug-fix-workflow',
+      action: 'quality_gates',
+      detail: '4개 게이트 전체 통과: lint ✅, typecheck ✅, test ✅, build ✅',
+      result: `Total: ${Object.values(gateResults).reduce((sum, g) => sum + g.durationMs, 0)}ms`,
+      statusChange: 'In Development',
+    });
+  });
+
+  it('Step 6: PR 생성', async () => {
+    const branchName = `bugfix/${ISSUE_KEY}-fix-empty-payload-500`;
+    setArtifact(ISSUE_KEY, 'branch_name', branchName);
+
+    const prResult = await hub.createPr(
+      'dev-rsquare/rtb-v2-mvp',
+      branchName,
+      `fix(${ISSUE_KEY}): ${readIssue(ISSUE_KEY).summary}`,
+      [
+        `## Bug Fix: ${ISSUE_KEY}`,
+        '',
+        `**Summary**: ${readIssue(ISSUE_KEY).summary}`,
+        '',
+        '### Root Cause Analysis',
+        readIssue(ISSUE_KEY).artifacts.root_cause || '',
+        '',
+        '### Fix',
+        readIssue(ISSUE_KEY).artifacts.fix_description || '',
+        '',
+        '### Quality Gates',
+        '- ✅ lint (3.2s)',
+        '- ✅ typecheck (8.5s)',
+        '- ✅ test (12s)',
+        '- ✅ build (15s)',
+        '',
+        '---',
+        '🤖 Auto-generated by RTB AI Hub — Bug Fix Workflow',
+      ].join('\n')
+    );
+
+    expect(prResult.success).toBe(true);
+    setArtifact(ISSUE_KEY, 'pr_url', prResult.data.prUrl as string);
+
+    addTimeline(ISSUE_KEY, {
+      agent: 'bug-fix-workflow',
+      action: 'pr_creation',
+      detail: `PR #${prResult.data.prNumber} 생성 완료`,
+      result: `PR: ${prResult.data.prUrl}, Branch: ${branchName}`,
+      statusChange: 'In Development → PR Created',
+    });
+
+    updateIssue(ISSUE_KEY, { status: 'PR Created' });
+  });
+
+  it('Step 7: 워크플로우 완료', () => {
+    addTimeline(ISSUE_KEY, {
+      agent: 'bug-fix-workflow',
+      action: 'workflow_complete',
+      detail: 'Bug fix 워크플로우 완료. 원인 분석 → 수정 → 테스트 → PR 생성 자동화 성공.',
+      result: 'Status: COMPLETED',
+      statusChange: 'PR Created → Done',
+    });
+
+    updateIssue(ISSUE_KEY, { status: 'Done' });
+  });
+
+  it('최종 검증: Bug fix 워크플로우 전체 아티팩트 확인', () => {
+    const issue = readIssue(ISSUE_KEY);
+
+    expect(issue.status).toBe('Done');
+    expect(issue.artifacts.stack_trace).toBeTruthy();
+    expect(issue.artifacts.root_cause).toBeTruthy();
+    expect(issue.artifacts.fix_description).toBeTruthy();
+    expect(issue.artifacts.test_added).toBeTruthy();
+    expect(issue.artifacts.gate_results).toBeTruthy();
+    expect(issue.artifacts.pr_url).toContain('github.com');
+    expect(issue.artifacts.branch_name).toContain('bugfix/');
+
+    // Verify timeline has all expected agents
+    const agents = issue.timeline.map((t) => t.agent);
+    expect(agents).toContain('classifier');
+    expect(agents).toContain('bug-fix-workflow');
+    expect(agents).toContain('claude-code');
+
+    // Verify no design debate in bug fix flow
+    const debateSteps = issue.timeline.filter((t) => t.action.includes('debate'));
+    expect(debateSteps).toHaveLength(0);
+  });
+});
+
 describe('IssueStore: CRUD operations', () => {
   const ISSUE_KEY = 'SIM-CRUD-001';
 
