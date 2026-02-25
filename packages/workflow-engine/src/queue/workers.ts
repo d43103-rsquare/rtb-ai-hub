@@ -10,11 +10,11 @@ import type {
 import {
   processFigmaToJira,
   processAutoReview,
-  processJiraAutoDev,
   processDeployMonitor,
   processIncidentToJira,
 } from '../workflows';
 import { processTargetDeploy } from '../workflows/target-deploy';
+import { routeJiraEvent } from '../classifier/workflow-router';
 
 const logger = createLogger('workers');
 
@@ -49,7 +49,7 @@ export async function registerWorkers(boss: PgBoss) {
       logger.info({ jobId: job.id }, 'Processing Jira event');
       try {
         const { event, userId, env = DEFAULT_ENVIRONMENT } = job.data;
-        const result = await processJiraAutoDev(event as JiraWebhookEvent, userId, env);
+        const result = await routeJiraEvent(event as JiraWebhookEvent, userId, env);
         logger.info({ jobId: job.id, result, userId }, 'Jira workflow completed');
       } catch (error) {
         logger.error({ jobId: job.id, error }, 'Jira workflow failed');
