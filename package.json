@@ -48,7 +48,8 @@
     "hub:deploy": "bash scripts/deploy-local.sh",
     "hub:deploy:dry": "bash scripts/deploy-local.sh --dry-run",
     "verify-env": "tsx scripts/verify-env.ts",
-    "dev:mock-jira": "pnpm --filter @rtb-ai-hub/mock-jira run dev"
+    "dev:mock-jira": "pnpm --filter @rtb-ai-hub/mock-jira run dev",
+    "test:e2e:bug-fix": "bash scripts/e2e-bug-fix.sh"
   },
   "engines": {
     "node": ">=20.0.0",
