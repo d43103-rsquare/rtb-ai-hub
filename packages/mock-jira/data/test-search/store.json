@@ -1,0 +1,90 @@
+{
+  "issues": [
+    {
+      "key": "PROJ-1",
+      "id": "10001",
+      "fields": {
+        "issuetype": {
+          "name": "Task"
+        },
+        "status": {
+          "name": "In Progress"
+        },
+        "summary": "Task A",
+        "description": "",
+        "project": {
+          "key": "PROJ"
+        },
+        "labels": [],
+        "priority": {
+          "name": "Medium"
+        },
+        "components": [],
+        "comment": {
+          "comments": []
+        },
+        "created": "2026-02-25T10:38:12.523Z",
+        "updated": "2026-02-25T10:38:12.524Z"
+      }
+    },
+    {
+      "key": "PROJ-2",
+      "id": "10002",
+      "fields": {
+        "issuetype": {
+          "name": "Bug"
+        },
+        "status": {
+          "name": "Open"
+        },
+        "summary": "Bug B",
+        "description": "",
+        "project": {
+          "key": "PROJ"
+        },
+        "labels": [],
+        "priority": {
+          "name": "Medium"
+        },
+        "components": [],
+        "comment": {
+          "comments": []
+        },
+        "created": "2026-02-25T10:38:12.523Z",
+        "updated": "2026-02-25T10:38:12.523Z"
+      }
+    },
+    {
+      "key": "OTHER-1",
+      "id": "10003",
+      "fields": {
+        "issuetype": {
+          "name": "Task"
+        },
+        "status": {
+          "name": "Open"
+        },
+        "summary": "Task C",
+        "description": "",
+        "project": {
+          "key": "OTHER"
+        },
+        "labels": [],
+        "priority": {
+          "name": "Medium"
+        },
+        "components": [],
+        "comment": {
+          "comments": []
+        },
+        "created": "2026-02-25T10:38:12.523Z",
+        "updated": "2026-02-25T10:38:12.523Z"
+      }
+    }
+  ],
+  "counters": {
+    "PROJ": 2,
+    "OTHER": 1
+  },
+  "idCounter": 10003
+}
