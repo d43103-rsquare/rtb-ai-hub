@@ -2,6 +2,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 export const API_URL = import.meta.env.VITE_API_URL || '';
 export const WS_URL = API_URL.replace(/^http/, 'ws') || `ws://${window.location.host}`;
 export const JIRA_HOST = import.meta.env.VITE_JIRA_HOST || 'rsquare.atlassian.net';
+export const MOCK_JIRA_ENABLED = import.meta.env.VITE_MOCK_JIRA === 'true';
 
 export const ROUTES = {
   HOME: '/',
