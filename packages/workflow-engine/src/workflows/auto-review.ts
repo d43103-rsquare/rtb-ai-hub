@@ -14,6 +14,7 @@ import {
   WorkflowType,
   DEFAULT_ENVIRONMENT,
   AgentPersona,
+  loadWorkflowBudget,
 } from '@rtb-ai-hub/shared';
 import type {
   GitHubWebhookEvent,
@@ -34,6 +35,8 @@ import {
 } from '../clients/mcp-helper';
 import { createDebateEngine } from '../debate/engine';
 import { createDebateStore } from '../debate/debate-store';
+import { parseAiJson } from '../utils/ai-output-parser';
+import { reviewAnalysisSchema } from '@rtb-ai-hub/shared';
 
 const logger = createLogger('auto-review-workflow');
 
@@ -74,6 +77,8 @@ export async function processAutoReview(
 
     // ─── Step 2: Review Debate (Backend Dev, QA, DevOps) ────────────────────
 
+    const budget = loadWorkflowBudget('auto-review');
+
     const debateConfig: DebateConfig = {
       topic: [
         `GitHub PR 코드 리뷰`,
@@ -109,7 +114,7 @@ export async function processAutoReview(
         AgentPersona.DEVOPS,
       ],
       moderator: AgentPersona.BACKEND_DEVELOPER,
-      maxTurns: parseInt(process.env.DEBATE_MAX_TURNS || '8', 10),
+      maxTurns: budget.debate.maxTurns,
       consensusRequired: true,
       context: {
         jiraKey: '',
@@ -117,7 +122,7 @@ export async function processAutoReview(
         description: `Repository: ${event.repository}, PR #${event.prNumber}`,
         env,
       },
-      budgetUsd: parseFloat(process.env.DEBATE_COST_LIMIT_USD || '3'),
+      budgetUsd: budget.debate.budgetUsd,
     };
 
     const adapters: ProviderAdapter[] = [new ClaudeAdapter()];
@@ -239,21 +244,9 @@ function extractReviewFromDebate(debateSession: any): ReviewAnalysis {
   ];
 
   for (const source of sources) {
-    try {
-      const jsonMatch = source.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        if ('summary' in parsed && 'approved' in parsed) {
-          return {
-            summary: parsed.summary || '',
-            approved: !!parsed.approved,
-            comments: Array.isArray(parsed.comments) ? parsed.comments : [],
-            suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions : [],
-          };
-        }
-      }
-    } catch {
-      // continue
+    const result = parseAiJson(source, reviewAnalysisSchema, { workflow: 'auto-review', field: 'review' });
+    if (result.success) {
+      return result.data as ReviewAnalysis;
     }
   }
 
@@ -327,14 +320,10 @@ Format your response as JSON:
   });
 
   let review: ReviewAnalysis;
-  try {
-    const jsonMatch = aiResponse.text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      review = JSON.parse(jsonMatch[0]);
-    } else {
-      review = { summary: aiResponse.text, approved: false, comments: [], suggestions: [] };
-    }
-  } catch {
+  const parseResult = parseAiJson(aiResponse.text, reviewAnalysisSchema, { workflow: 'auto-review', field: 'singleAiReview' });
+  if (parseResult.success) {
+    review = parseResult.data as ReviewAnalysis;
+  } else {
     review = { summary: aiResponse.text, approved: false, comments: [], suggestions: [] };
   }
 

@@ -19,7 +19,7 @@ import {
   WorkflowType,
   WorkflowStatus,
   generateId,
-  AgentPersona,
+  loadWorkflowBudget,
 } from '@rtb-ai-hub/shared';
 import type {
   JiraWebhookEvent,
@@ -49,6 +49,8 @@ import { findDecisionsByJiraKey } from '../utils/decision-store';
 import { createTaskFolder } from '../utils/task-folder';
 import { buildOpsVerificationPrompt, parseOpsVerificationResult } from '../utils/ops-verifier';
 import { isPaused } from '../utils/pause-checker';
+import { selectParticipants } from '../debate/participant-selector';
+import { classifyTicket } from '../classifier/ticket-classifier';
 
 const logger = createLogger('jira-auto-dev-workflow');
 
@@ -152,16 +154,20 @@ export async function processJiraAutoDev(
   const debateStore = createDebateStore(database);
   const policyEngine = createPolicyEngine();
 
+  const budget = loadWorkflowBudget('jira-auto-dev');
+
+  const category = classifyTicket(event);
+  const { participants, moderator } = selectParticipants({
+    category,
+    summary,
+    description,
+  });
+
   const debateConfig: DebateConfig = {
     topic: `Jira Issue ${issueKey}: ${summary}\n\n${description}\n\n이 이슈의 기술 설계와 구현 방안을 논의하세요.`,
-    participants: [
-      AgentPersona.PM,
-      AgentPersona.SYSTEM_PLANNER,
-      AgentPersona.BACKEND_DEVELOPER,
-      AgentPersona.QA,
-    ],
-    moderator: AgentPersona.PM,
-    maxTurns: parseInt(process.env.DEBATE_MAX_TURNS || '12', 10),
+    participants,
+    moderator,
+    maxTurns: budget.debate.maxTurns,
     consensusRequired: true,
     context: {
       jiraKey: issueKey,
@@ -171,7 +177,7 @@ export async function processJiraAutoDev(
       wikiKnowledge,
       previousDecisions,
     },
-    budgetUsd: parseFloat(process.env.DEBATE_COST_LIMIT_USD || '5'),
+    budgetUsd: budget.debate.budgetUsd,
   };
 
   const debateEngine = createDebateEngine({
@@ -261,8 +267,8 @@ export async function processJiraAutoDev(
     claudeMdContent,
     mcpServers,
     allowedTools,
-    maxTurns: parseInt(process.env.CLAUDE_CODE_MAX_TURNS || '30', 10),
-    timeoutMs: parseInt(process.env.CLAUDE_CODE_TIMEOUT_MS || '600000', 10),
+    maxTurns: budget.claudeCode.maxTurns,
+    timeoutMs: budget.claudeCode.timeoutMs,
   };
 
   const runGates = async () => {

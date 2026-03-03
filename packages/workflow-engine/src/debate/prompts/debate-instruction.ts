@@ -6,6 +6,8 @@
  */
 
 import type { PersonaDefinition, DebateTurn, DebateTurnType } from '@rtb-ai-hub/shared';
+import type { CompressedHistory } from '../memory/short-term-memory';
+import { formatCompressedHistory } from '../memory/short-term-memory';
 
 export type InstructionInput = {
   turnType: DebateTurnType;
@@ -13,18 +15,22 @@ export type InstructionInput = {
   topic: string;
   previousTurns: DebateTurn[];
   persona: PersonaDefinition;
+  /** If provided, uses compressed history instead of raw previousTurns */
+  compressedHistory?: CompressedHistory;
 };
 
 export function buildTurnInstruction(input: InstructionInput): string {
-  const { turnType, turnNumber, topic, previousTurns, persona } = input;
+  const { turnType, turnNumber, topic, previousTurns, persona, compressedHistory } = input;
 
   const sections: string[] = [];
 
   // Topic
   sections.push(`## 토론 주제\n${topic}`);
 
-  // Previous turns
-  if (previousTurns.length > 0) {
+  // Previous turns — use compressed history if available
+  if (compressedHistory && (compressedHistory.summary || compressedHistory.recentTurns.length > 0)) {
+    sections.push(`## 이전 토론 내용\n${formatCompressedHistory(compressedHistory)}`);
+  } else if (previousTurns.length > 0) {
     sections.push(`## 이전 토론 내용\n${formatPreviousTurns(previousTurns)}`);
   }
 

@@ -9,6 +9,8 @@ import type { GitHubWebhookEvent, WorkflowExecution, Environment } from '@rtb-ai
 import { database } from '../clients/database';
 import { ClaudeAdapter } from '../clients/adapters/claude-adapter';
 import { createDatadogMonitor } from '../clients/mcp-helper';
+import { parseAiJson } from '../utils/ai-output-parser';
+import { monitoringAnalysisSchema } from '@rtb-ai-hub/shared';
 
 const logger = createLogger('deploy-monitor-workflow');
 
@@ -107,20 +109,10 @@ Format your response as JSON:
     logger.info({ executionId, tokensUsed: aiResponse.tokensUsed }, 'AI analysis complete');
 
     let monitoring: MonitoringAnalysis;
-    try {
-      const jsonMatch = aiResponse.text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        monitoring = JSON.parse(jsonMatch[0]);
-      } else {
-        monitoring = {
-          analysis: { summary: aiResponse.text, riskLevel: 'medium', affectedServices: [] },
-          risks: [],
-          monitoringChecklist: [],
-          rollbackCriteria: [],
-        };
-      }
-    } catch (parseError) {
-      logger.warn({ parseError }, 'Failed to parse AI response as JSON, using raw text');
+    const parseResult = parseAiJson(aiResponse.text, monitoringAnalysisSchema, { workflow: 'deploy-monitor', field: 'monitoring' });
+    if (parseResult.success) {
+      monitoring = parseResult.data as MonitoringAnalysis;
+    } else {
       monitoring = {
         analysis: { summary: aiResponse.text, riskLevel: 'medium', affectedServices: [] },
         risks: [],

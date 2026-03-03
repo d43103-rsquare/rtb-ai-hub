@@ -11,6 +11,7 @@ import { AIProviderRouter } from '../clients/provider-router';
 import { getPersona } from './persona-registry';
 import { buildSystemPrompt } from './prompts/base-prompt';
 import { buildTurnInstruction } from './prompts/debate-instruction';
+import type { CompressedHistory } from './memory/short-term-memory';
 import { createLogger } from '@rtb-ai-hub/shared';
 
 const logger = createLogger('turn-executor');
@@ -27,6 +28,7 @@ export type TurnInput = {
   context: DebateContext;
   previousTurns: DebateTurn[];
   topic: string;
+  compressedHistory?: CompressedHistory;
 };
 
 export async function executeTurn(
@@ -39,13 +41,14 @@ export async function executeTurn(
   // Build system prompt from persona
   const systemPrompt = buildSystemPrompt(persona, input.context);
 
-  // Build turn instruction
+  // Build turn instruction (use compressed history if available)
   const turnInstruction = buildTurnInstruction({
     turnType: input.turnType,
     turnNumber: input.turnNumber,
     topic: input.topic,
     previousTurns: input.previousTurns,
     persona,
+    compressedHistory: input.compressedHistory,
   });
 
   logger.info(

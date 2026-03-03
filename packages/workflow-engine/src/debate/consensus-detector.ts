@@ -1,94 +1,48 @@
 /**
- * Consensus Detector — 토론 합의 감지
+ * Consensus Detector — 토론 합의 감지 (하이브리드: AI + 키워드)
  *
- * - 명시적 동의/반대 키워드 감지 (한국어 + 영어)
- * - 합의율 계산
- * - 교착 상태 감지
+ * 1. AI 분석 시도 (haiku 모델, ~$0.02/회)
+ * 2. AI 실패 시 키워드 매칭 fallback
+ * 3. 교착 상태 감지
  */
 
 import type { AgentPersona, ConsensusStatus, DebateTurn } from '@rtb-ai-hub/shared';
+import type { ProviderAdapter } from '@rtb-ai-hub/shared';
+import { analyzeConsensusWithAi } from './ai-consensus-analyzer';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 const AGREEMENT_KEYWORDS = [
   // Korean
-  '동의합니다',
-  '동의해요',
-  '찬성합니다',
-  '찬성해요',
-  '좋습니다',
-  '좋은 방향',
-  '적절합니다',
-  '맞습니다',
-  '수긍합니다',
-  '합의합니다',
-  '이 방향이 좋',
-  '이견 없습니다',
-  '이견없습니다',
-  '문제 없습니다',
-  '문제없습니다',
-  '지지합니다',
-  '동의하며',
-  '찬성하며',
+  '동의합니다', '동의해요', '찬성합니다', '찬성해요', '좋습니다',
+  '좋은 방향', '적절합니다', '맞습니다', '수긍합니다', '합의합니다',
+  '이 방향이 좋', '이견 없습니다', '이견없습니다', '문제 없습니다',
+  '문제없습니다', '지지합니다', '동의하며', '찬성하며',
   // English
-  'i agree',
-  'agreed',
-  'sounds good',
-  'makes sense',
-  'i support',
-  'no objection',
-  'looks good',
-  'well aligned',
-  'consensus',
-  'on board',
-  'approve',
-  'lgtm',
+  'i agree', 'agreed', 'sounds good', 'makes sense', 'i support',
+  'no objection', 'looks good', 'well aligned', 'consensus',
+  'on board', 'approve', 'lgtm',
 ];
 
 const DISAGREEMENT_KEYWORDS = [
   // Korean
-  '반대합니다',
-  '반대해요',
-  '동의하지 않',
-  '동의할 수 없',
-  '우려됩니다',
-  '우려가 있',
-  '재고가 필요',
-  '다시 생각',
-  '문제가 있',
-  '위험합니다',
-  '대안을 제안',
-  '다른 접근',
-  '부적절합니다',
-  '수정이 필요',
+  '반대합니다', '반대해요', '동의하지 않', '동의할 수 없',
+  '우려됩니다', '우려가 있', '재고가 필요', '다시 생각',
+  '문제가 있', '위험합니다', '대안을 제안', '다른 접근',
+  '부적절합니다', '수정이 필요',
   // English
-  'i disagree',
-  'i object',
-  'concerned about',
-  'not convinced',
-  'alternative approach',
-  'reconsider',
-  'push back',
-  'not ideal',
-  'risky',
-  'problem with',
+  'i disagree', 'i object', 'concerned about', 'not convinced',
+  'alternative approach', 'reconsider', 'push back', 'not ideal',
+  'risky', 'problem with',
 ];
 
 const PARTIAL_AGREEMENT_KEYWORDS = [
   // Korean
-  '부분적으로 동의',
-  '조건부 동의',
-  '일부 동의',
-  '대체로 좋지만',
-  '기본적으로 찬성하지만',
-  '방향은 좋으나',
-  '동의하지만 다만',
+  '부분적으로 동의', '조건부 동의', '일부 동의', '대체로 좋지만',
+  '기본적으로 찬성하지만', '방향은 좋으나', '동의하지만 다만',
   // English
-  'partially agree',
-  'mostly agree but',
-  'agree with reservations',
-  'conditionally agree',
-  'generally supportive but',
+  'partially agree', 'mostly agree but', 'agree with reservations',
+  'conditionally agree', 'generally supportive but',
 ];
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -101,30 +55,44 @@ export type ConsensusResult = {
   stances: Record<string, AgentStance>;
   isStalemate: boolean;
   summary: string;
+  method: 'ai' | 'keyword';
 };
 
 // ─── Consensus Detector ────────────────────────────────────────────────────────
 
 export class ConsensusDetector {
   private previousRates: number[] = [];
+  private lightweightAdapter: ProviderAdapter | null = null;
 
-  /** Analyze the latest turn and compute consensus among all participants */
-  analyze(
+  /** Set a lightweight AI adapter for AI-based consensus analysis */
+  setLightweightAdapter(adapter: ProviderAdapter): void {
+    this.lightweightAdapter = adapter;
+  }
+
+  /** Analyze consensus — tries AI first, falls back to keyword matching */
+  async analyze(
     turns: DebateTurn[],
-    participants: AgentPersona[]
-  ): ConsensusResult {
-    const stances: Record<string, AgentStance> = {};
+    participants: AgentPersona[],
+    topic?: string
+  ): Promise<ConsensusResult> {
+    let stances: Record<string, AgentStance>;
+    let method: 'ai' | 'keyword' = 'keyword';
 
-    // Get the latest turn for each participant
-    for (const agent of participants) {
-      const agentTurns = turns.filter((t) => t.agent === agent);
-      if (agentTurns.length === 0) {
-        stances[agent] = 'neutral';
-        continue;
+    // Try AI analysis first
+    if (this.lightweightAdapter && topic) {
+      const aiResult = await analyzeConsensusWithAi(
+        this.lightweightAdapter,
+        { turns, participants, topic }
+      );
+
+      if (aiResult) {
+        stances = aiResult.stances;
+        method = 'ai';
+      } else {
+        stances = this.keywordAnalysis(turns, participants);
       }
-
-      const latestTurn = agentTurns[agentTurns.length - 1];
-      stances[agent] = this.detectStance(latestTurn.content);
+    } else {
+      stances = this.keywordAnalysis(turns, participants);
     }
 
     const agreeCount = Object.values(stances).filter((s) => s === 'agree').length;
@@ -146,6 +114,7 @@ export class ConsensusDetector {
       stances,
       isStalemate,
       summary: this.buildSummary(status, consensusRate, stances, isStalemate),
+      method,
     };
   }
 
@@ -154,7 +123,24 @@ export class ConsensusDetector {
     this.previousRates = [];
   }
 
-  // ─── Internal ────────────────────────────────────────────────────────────────
+  // ─── Keyword-based analysis (fallback) ──────────────────────────────────────
+
+  private keywordAnalysis(turns: DebateTurn[], participants: AgentPersona[]): Record<string, AgentStance> {
+    const stances: Record<string, AgentStance> = {};
+
+    for (const agent of participants) {
+      const agentTurns = turns.filter((t) => t.agent === agent);
+      if (agentTurns.length === 0) {
+        stances[agent] = 'neutral';
+        continue;
+      }
+
+      const latestTurn = agentTurns[agentTurns.length - 1];
+      stances[agent] = this.detectStance(latestTurn.content);
+    }
+
+    return stances;
+  }
 
   private detectStance(content: string): AgentStance {
     const lower = content.toLowerCase();

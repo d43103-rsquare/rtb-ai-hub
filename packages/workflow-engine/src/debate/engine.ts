@@ -23,6 +23,8 @@ import { ExecutionGuard, createExecutionGuard } from '../harness/execution-guard
 import { Observer, createObserver } from '../harness/observer';
 import { ConsensusDetector, createConsensusDetector } from './consensus-detector';
 import { executeTurn } from './turn-executor';
+import { compressHistory } from './memory/short-term-memory';
+import { extractDebateTags } from './memory/long-term-memory';
 import { DebateStore } from './debate-store';
 
 const logger = createLogger('debate-engine');
@@ -60,6 +62,14 @@ export class DebateEngine {
       guard.getState().budget.debateTimeoutMs
     );
     const consensusDetector = createConsensusDetector();
+
+    // Set lightweight adapter for AI-based consensus (uses haiku/light model)
+    try {
+      const { adapter } = this.router.getAdapterForAgent(config.moderator);
+      consensusDetector.setLightweightAdapter(adapter);
+    } catch {
+      // No adapter available — keyword fallback only
+    }
 
     // Initialize session
     const session: DebateSession = {
@@ -151,7 +161,12 @@ export class DebateEngine {
       // Finalize
       session.durationMs = Date.now() - startTime;
       if (this.store && session.outcome) {
-        await this.store.complete(sessionId, session.outcome, session.durationMs);
+        const tags = extractDebateTags(config.topic, session.outcome.decision);
+        const consensusSummary = session.outcome.decision?.slice(0, 2000);
+        await this.store.complete(sessionId, session.outcome, session.durationMs, {
+          tags,
+          consensusSummary,
+        });
       }
 
       logger.info(
@@ -174,7 +189,11 @@ export class DebateEngine {
       };
 
       if (this.store) {
-        await this.store.complete(sessionId, session.outcome, session.durationMs);
+        const tags = extractDebateTags(config.topic, session.outcome.decision);
+        await this.store.complete(sessionId, session.outcome, session.durationMs, {
+          tags,
+          consensusSummary: session.outcome.decision?.slice(0, 2000),
+        });
       }
 
       logger.error({ error, sessionId }, 'Debate failed');
@@ -199,8 +218,8 @@ export class DebateEngine {
     while (roundNumber < maxRounds) {
       roundNumber++;
 
-      // Check consensus before each round
-      const consensus = consensusDetector.analyze(session.turns, config.participants);
+      // Check consensus before each round (hybrid: AI + keyword fallback)
+      const consensus = await consensusDetector.analyze(session.turns, config.participants, config.topic);
 
       if (consensus.status === 'consensus') {
         // Moderator summarizes
@@ -324,7 +343,19 @@ export class DebateEngine {
 
     observer.onTurnStart(input.agent, input.turnNumber);
 
-    const turn = await executeTurn(input, { router: this.router });
+    // Compress history for long debates (sliding window + AI summarization)
+    let summarizationAdapter = null;
+    try {
+      summarizationAdapter = this.router.getAdapterForAgent(input.agent).adapter;
+    } catch {
+      // No adapter — compression will use truncation fallback
+    }
+    const compressed = await compressHistory(input.previousTurns, summarizationAdapter);
+
+    const turn = await executeTurn(
+      { ...input, compressedHistory: compressed },
+      { router: this.router }
+    );
 
     // Record with guard
     const { adapter } = this.router.getAdapterForAgent(input.agent);

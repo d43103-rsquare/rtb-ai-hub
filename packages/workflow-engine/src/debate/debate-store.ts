@@ -58,17 +58,24 @@ export class DebateStore {
   }
 
   /** Complete a debate session */
-  async complete(sessionId: string, outcome: DebateOutcome, durationMs: number): Promise<void> {
+  async complete(
+    sessionId: string,
+    outcome: DebateOutcome,
+    durationMs: number,
+    meta?: { tags?: string[]; consensusSummary?: string }
+  ): Promise<void> {
     try {
       await this.db.query(
         `UPDATE debate_sessions
-         SET outcome = $2, duration_ms = $3, completed_at = $4
+         SET outcome = $2, duration_ms = $3, completed_at = $4, tags = $5, consensus_summary = $6
          WHERE id = $1`,
         [
           sessionId,
           JSON.stringify(outcome),
           durationMs,
           new Date().toISOString(),
+          meta?.tags ? JSON.stringify(meta.tags) : null,
+          meta?.consensusSummary ?? null,
         ]
       );
 

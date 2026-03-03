@@ -16,6 +16,7 @@ import {
   WorkflowType,
   DEFAULT_ENVIRONMENT,
   AgentPersona,
+  loadWorkflowBudget,
 } from '@rtb-ai-hub/shared';
 import type {
   FigmaWebhookEvent,
@@ -44,6 +45,8 @@ import {
   type FigmaContext,
 } from '../utils/figma-context';
 import { loadComponentMapping, formatMappedComponents } from '../utils/component-mapping';
+import { parseAiJson } from '../utils/ai-output-parser';
+import { figmaAnalysisSchema } from '@rtb-ai-hub/shared';
 import { sendToJiraQueue } from '../queue/queues';
 import { createDebateEngine } from '../debate/engine';
 import { createDebateStore } from '../debate/debate-store';
@@ -133,6 +136,8 @@ export async function processFigmaToJira(
 
     const { section: figmaDataSection, mappingSection } = await buildFigmaDataSection(figmaContext);
 
+    const budget = loadWorkflowBudget('figma-to-jira');
+
     const debateConfig: DebateConfig = {
       topic: [
         `Figma 디자인 분석 및 Jira 태스크 분해`,
@@ -162,7 +167,7 @@ export async function processFigmaToJira(
         AgentPersona.UI_DEVELOPER,
       ],
       moderator: AgentPersona.PM,
-      maxTurns: parseInt(process.env.DEBATE_MAX_TURNS || '8', 10),
+      maxTurns: budget.debate.maxTurns,
       consensusRequired: true,
       context: {
         jiraKey: '',
@@ -174,7 +179,7 @@ export async function processFigmaToJira(
           ? { 'Team Component Mapping': mappingSection }
           : undefined,
       },
-      budgetUsd: parseFloat(process.env.DEBATE_COST_LIMIT_USD || '3'),
+      budgetUsd: budget.debate.budgetUsd,
     };
 
     const adapters: ProviderAdapter[] = [new ClaudeAdapter()];
@@ -379,16 +384,9 @@ function extractAnalysisFromDebate(debateSession: { turns?: Array<{ artifacts?: 
   ];
 
   for (const source of sources) {
-    try {
-      const jsonMatch = source.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        if (parsed.story && parsed.tasks) {
-          return parsed as FigmaAnalysis;
-        }
-      }
-    } catch {
-      // continue to next source
+    const result = parseAiJson(source, figmaAnalysisSchema, { workflow: 'figma-to-jira', field: 'analysis' });
+    if (result.success) {
+      return result.data as FigmaAnalysis;
     }
   }
 
@@ -452,17 +450,10 @@ Format your response as JSON:
   });
 
   let analysis: FigmaAnalysis;
-  try {
-    const jsonMatch = aiResponse.text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      analysis = JSON.parse(jsonMatch[0]);
-    } else {
-      analysis = {
-        story: { summary: 'Figma Design Update', description: aiResponse.text },
-        tasks: [],
-      };
-    }
-  } catch {
+  const parseResult = parseAiJson(aiResponse.text, figmaAnalysisSchema, { workflow: 'figma-to-jira', field: 'singleAiAnalysis' });
+  if (parseResult.success) {
+    analysis = parseResult.data as FigmaAnalysis;
+  } else {
     analysis = {
       story: { summary: 'Figma Design Update', description: aiResponse.text },
       tasks: [],

@@ -399,6 +399,72 @@ export function loadDecisionJournalConfig(): DecisionJournalConfig {
   };
 }
 
+// ─── Workflow Budget Configuration ────────────────────────────────────────────
+
+export type WorkflowBudgetConfig = {
+  debate: { budgetUsd: number; maxTurns: number; timeoutMs: number };
+  claudeCode: { maxTurns: number; timeoutMs: number; maxRetries: number };
+  maxTokensPerTurn: number;
+};
+
+const WORKFLOW_BUDGET_DEFAULTS: Record<string, WorkflowBudgetConfig> = {
+  'jira-auto-dev': {
+    debate: { budgetUsd: 5, maxTurns: 12, timeoutMs: 1_800_000 },
+    claudeCode: { maxTurns: 30, timeoutMs: 600_000, maxRetries: 3 },
+    maxTokensPerTurn: 8192,
+  },
+  'figma-to-jira': {
+    debate: { budgetUsd: 3, maxTurns: 8, timeoutMs: 1_200_000 },
+    claudeCode: { maxTurns: 30, timeoutMs: 600_000, maxRetries: 3 },
+    maxTokensPerTurn: 8192,
+  },
+  'auto-review': {
+    debate: { budgetUsd: 3, maxTurns: 8, timeoutMs: 1_200_000 },
+    claudeCode: { maxTurns: 30, timeoutMs: 600_000, maxRetries: 3 },
+    maxTokensPerTurn: 8192,
+  },
+  'bug-fix': {
+    debate: { budgetUsd: 3, maxTurns: 8, timeoutMs: 1_200_000 },
+    claudeCode: { maxTurns: 30, timeoutMs: 600_000, maxRetries: 3 },
+    maxTokensPerTurn: 8192,
+  },
+};
+
+const GLOBAL_BUDGET_DEFAULT: WorkflowBudgetConfig = {
+  debate: { budgetUsd: 5, maxTurns: 12, timeoutMs: 1_800_000 },
+  claudeCode: { maxTurns: 30, timeoutMs: 600_000, maxRetries: 3 },
+  maxTokensPerTurn: 8192,
+};
+
+export function loadWorkflowBudget(workflowType: string): WorkflowBudgetConfig {
+  const defaults = WORKFLOW_BUDGET_DEFAULTS[workflowType] || GLOBAL_BUDGET_DEFAULT;
+
+  return {
+    debate: {
+      budgetUsd: parseFloat(process.env.DEBATE_COST_LIMIT_USD || String(defaults.debate.budgetUsd)),
+      maxTurns: parseInt(process.env.DEBATE_MAX_TURNS || String(defaults.debate.maxTurns), 10),
+      timeoutMs: parseInt(process.env.DEBATE_TIMEOUT_MS || String(defaults.debate.timeoutMs), 10),
+    },
+    claudeCode: {
+      maxTurns: parseInt(process.env.CLAUDE_CODE_MAX_TURNS || String(defaults.claudeCode.maxTurns), 10),
+      timeoutMs: parseInt(process.env.CLAUDE_CODE_TIMEOUT_MS || String(defaults.claudeCode.timeoutMs), 10),
+      maxRetries: parseInt(process.env.CLAUDE_CODE_MAX_RETRIES || String(defaults.claudeCode.maxRetries), 10),
+    },
+    maxTokensPerTurn: parseInt(process.env.MAX_TOKENS_PER_TURN || String(defaults.maxTokensPerTurn), 10),
+  };
+}
+
+export function toExecutionBudget(config: WorkflowBudgetConfig): import('./debate-types').ExecutionBudget {
+  return {
+    maxTokensPerTurn: config.maxTokensPerTurn,
+    maxTotalCostUsd: config.debate.budgetUsd,
+    maxDebateTurns: config.debate.maxTurns,
+    maxClaudeCodeRetries: config.claudeCode.maxRetries,
+    claudeCodeTimeoutMs: config.claudeCode.timeoutMs,
+    debateTimeoutMs: config.debate.timeoutMs,
+  };
+}
+
 // Timeouts (milliseconds)
 export const TIMEOUTS = {
   AI_REQUEST: 120000, // 2 minutes

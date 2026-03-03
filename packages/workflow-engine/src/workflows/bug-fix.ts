@@ -20,6 +20,7 @@ import {
   WorkflowStatus,
   generateId,
   FEATURE_FLAGS,
+  loadWorkflowBudget,
 } from '@rtb-ai-hub/shared';
 import type {
   JiraWebhookEvent,
@@ -120,6 +121,7 @@ export async function processBugFix(
 
   // ─── Step 5 & 6: Build Task + Execute Claude Code with Gate Retry ─────────
 
+  const budget = loadWorkflowBudget('bug-fix');
   const policyEngine = createPolicyEngine();
   const mcpServers = buildMcpServers({ env, allowedServices: ['GITHUB', 'JIRA'] });
   const allowedTools = buildAllowedTools(['GITHUB', 'JIRA']);
@@ -132,8 +134,8 @@ export async function processBugFix(
     claudeMdContent,
     mcpServers,
     allowedTools,
-    maxTurns: parseInt(process.env.CLAUDE_CODE_MAX_TURNS || '30', 10),
-    timeoutMs: parseInt(process.env.CLAUDE_CODE_TIMEOUT_MS || '600000', 10),
+    maxTurns: budget.claudeCode.maxTurns,
+    timeoutMs: budget.claudeCode.timeoutMs,
   };
 
   const runGates = async () => {

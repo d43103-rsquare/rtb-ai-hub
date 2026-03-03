@@ -9,6 +9,8 @@ import type { DatadogWebhookEvent, WorkflowExecution, Environment } from '@rtb-a
 import { database } from '../clients/database';
 import { ClaudeAdapter } from '../clients/adapters/claude-adapter';
 import { createJiraIssue, getJiraProjectKey } from '../clients/mcp-helper';
+import { parseAiJson } from '../utils/ai-output-parser';
+import { incidentAnalysisSchema } from '@rtb-ai-hub/shared';
 
 const logger = createLogger('incident-to-jira-workflow');
 
@@ -111,26 +113,10 @@ Format your response as JSON:
     logger.info({ executionId, tokensUsed: aiResponse.tokensUsed }, 'AI analysis complete');
 
     let incident: IncidentAnalysis;
-    try {
-      const jsonMatch = aiResponse.text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        incident = JSON.parse(jsonMatch[0]);
-      } else {
-        incident = {
-          rootCause: { summary: event.title, analysis: aiResponse.text, confidence: 'low' },
-          jiraTicket: {
-            summary: event.title,
-            description: aiResponse.text,
-            priority: event.priority,
-            component: event.service || 'Unknown',
-            labels: ['incident'],
-          },
-          investigation: [],
-          runbook: [],
-        };
-      }
-    } catch (parseError) {
-      logger.warn({ parseError }, 'Failed to parse AI response as JSON, using raw text');
+    const parseResult = parseAiJson(aiResponse.text, incidentAnalysisSchema, { workflow: 'incident-to-jira', field: 'incident' });
+    if (parseResult.success) {
+      incident = parseResult.data as IncidentAnalysis;
+    } else {
       incident = {
         rootCause: { summary: event.title, analysis: aiResponse.text, confidence: 'low' },
         jiraTicket: {

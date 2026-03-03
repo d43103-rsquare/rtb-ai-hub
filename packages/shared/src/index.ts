@@ -19,5 +19,8 @@ export * from './utils';
 export * from './schemas';
 export * from './validation';
 
+// AI Output Schemas
+export * from './ai-output-schemas';
+
 // Database (Drizzle ORM)
 export * from './db';

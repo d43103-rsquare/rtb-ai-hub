@@ -9,6 +9,7 @@ import {
   decimal,
   timestamp,
   index,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
@@ -270,12 +271,37 @@ export const debateSessions = pgTable(
     totalTokensOutput: integer('total_tokens_output').default(0),
     totalCostUsd: decimal('total_cost_usd', { precision: 10, scale: 6 }).default('0'),
     durationMs: integer('duration_ms'),
+    tags: jsonb('tags').default([]),
+    consensusSummary: text('consensus_summary'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp('completed_at', { withTimezone: true }),
   },
   (table) => [
     index('idx_debate_sessions_workflow_exec').on(table.workflowExecutionId),
     index('idx_debate_sessions_created_at').on(table.createdAt),
+  ]
+);
+
+// ─── entity_knowledge (토론에서 추출된 엔티티별 지식 누적) ──────────────────────
+
+export const entityKnowledge = pgTable(
+  'entity_knowledge',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    entityType: varchar('entity_type', { length: 50 }).notNull(), // 'component' | 'api' | 'module' | 'service'
+    entityName: varchar('entity_name', { length: 255 }).notNull(),
+    knowledge: text('knowledge').notNull(),
+    sourceDebateId: varchar('source_debate_id', { length: 255 }).notNull(),
+    sourceTopic: varchar('source_topic', { length: 500 }),
+    tags: jsonb('tags').default([]),
+    mentionCount: integer('mention_count').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('idx_entity_knowledge_type_name').on(table.entityType, table.entityName),
+    index('idx_entity_knowledge_source_debate').on(table.sourceDebateId),
+    index('idx_entity_knowledge_updated_at').on(table.updatedAt),
   ]
 );
 
