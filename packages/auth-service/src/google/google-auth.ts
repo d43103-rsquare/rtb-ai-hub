@@ -103,17 +103,21 @@ export class GoogleAuthManager {
     );
 
     if (existingUser[0]) {
-      await query(
+      const updatedUser = await query<User>(
         `
         UPDATE users
         SET last_login = NOW(), updated_at = NOW()
         WHERE id = $1
+        RETURNING id, google_id as "googleId", email, name, picture,
+                  workspace_domain as "workspaceDomain", is_active as "isActive",
+                  created_at as "createdAt", updated_at as "updatedAt",
+                  last_login as "lastLogin"
         `,
         [existingUser[0].id]
       );
 
-      logger.info({ userId: existingUser[0].id }, 'User logged in');
-      return existingUser[0];
+      logger.info({ userId: updatedUser[0].id }, 'User logged in');
+      return updatedUser[0];
     }
 
     const userId = generateId('user');

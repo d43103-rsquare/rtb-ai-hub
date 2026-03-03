@@ -37,8 +37,8 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / CHARS_PER_TOKEN);
 }
 
-function buildCacheKey(turns: DebateTurn[]): string {
-  return turns.map((t) => `${t.turnNumber}:${t.agent}`).join(',');
+function buildCacheKey(turns: DebateTurn[], sessionId: string): string {
+  return `${sessionId}:${turns.map((t) => `${t.turnNumber}:${t.agent}`).join(',')}`;
 }
 
 /**
@@ -51,7 +51,8 @@ function buildCacheKey(turns: DebateTurn[]): string {
  */
 export async function compressHistory(
   turns: DebateTurn[],
-  adapter: ProviderAdapter | null
+  adapter: ProviderAdapter | null,
+  sessionId: string = ''
 ): Promise<CompressedHistory> {
   // Not enough turns to need compression
   if (turns.length <= RECENT_TURNS_FULL) {
@@ -92,7 +93,7 @@ export async function compressHistory(
   }
 
   // Check summary cache
-  const cacheKey = buildCacheKey(olderTurns);
+  const cacheKey = buildCacheKey(olderTurns, sessionId);
   let summary = summaryCache.get(cacheKey);
 
   if (!summary) {

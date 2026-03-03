@@ -87,6 +87,7 @@ export async function executeWithGateRetry(
   options: ClaudeCodeExecOptions = {}
 ): Promise<{ codeResult: ClaudeCodeResult; gateResult: GatePipelineResult }> {
   const maxRetries = options.guard?.getState().budget.maxClaudeCodeRetries ?? 3;
+  const originalPrompt = task.prompt;
   let lastCodeResult: ClaudeCodeResult | null = null;
   let lastGateResult: GatePipelineResult | null = null;
 
@@ -102,8 +103,9 @@ export async function executeWithGateRetry(
       }
     }
 
-    // Run Claude Code
-    const codeResult = await executeClaudeCode(task, options);
+    // Run Claude Code (use spread to avoid mutating the original task)
+    const currentTask = attempt === 1 ? task : { ...task };
+    const codeResult = await executeClaudeCode(currentTask, options);
     lastCodeResult = codeResult;
 
     if (!codeResult.success) {
@@ -120,13 +122,13 @@ export async function executeWithGateRetry(
       return { codeResult, gateResult };
     }
 
-    // Prepare retry with gate error context
+    // Prepare retry with gate error context (reconstruct from original prompt)
     const failedGates = gateResult.gates
       .filter((g) => !g.passed)
       .map((g) => `${g.gate}: ${g.output.slice(0, 1000)}`)
       .join('\n\n');
 
-    task.prompt = `이전 실행에서 다음 게이트가 실패했습니다. 이 문제를 수정해주세요:\n\n${failedGates}\n\n원래 요청:\n${task.prompt}`;
+    task.prompt = `이전 실행에서 다음 게이트가 실패했습니다. 이 문제를 수정해주세요:\n\n${failedGates}\n\n원래 요청:\n${originalPrompt}`;
 
     logger.info(
       { taskId: task.id, attempt, failedGates: gateResult.gates.filter((g) => !g.passed).map((g) => g.gate) },

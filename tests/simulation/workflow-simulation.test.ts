@@ -462,7 +462,9 @@ describe('Workflow Simulation: Feature Development (Happy Path)', () => {
 describe('Workflow Simulation: G1 Rejection → Resubmission', () => {
   const ISSUE_KEY = 'SIM-002';
 
-  beforeAll(() => {});
+  beforeAll(() => {
+    cleanWorkspace();
+  });
 
   it('Step 0: 이슈 생성', () => {
     const issue = createIssue({
@@ -600,6 +602,10 @@ describe('Workflow Simulation: G1 Rejection → Resubmission', () => {
 
 describe('Workflow Simulation: Bug Fix (Happy Path)', () => {
   const ISSUE_KEY = 'SIM-BUG-001';
+
+  beforeAll(() => {
+    cleanWorkspace();
+  });
 
   it('Step 0: Bug 이슈가 접수됨', () => {
     const issue = createIssue({

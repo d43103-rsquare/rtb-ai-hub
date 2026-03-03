@@ -3,21 +3,31 @@ import { requireEnv, createLogger, DEFAULT_JOB_OPTIONS } from '@rtb-ai-hub/share
 
 const logger = createLogger('queue-client');
 let boss: PgBoss | null = null;
+let initPromise: Promise<PgBoss> | null = null;
 
 export async function getQueueClient(): Promise<PgBoss> {
-  if (!boss) {
-    boss = new PgBoss({ connectionString: requireEnv('DATABASE_URL'), schema: 'pgboss' });
-    boss.on('error', (error) => logger.error({ error }, 'pg-boss error'));
-    await boss.start();
-    logger.info('pg-boss queue client started');
+  if (boss) return boss;
+  if (!initPromise) {
+    initPromise = (async () => {
+      const instance = new PgBoss({ connectionString: requireEnv('DATABASE_URL'), schema: 'pgboss' });
+      instance.on('error', (error) => logger.error({ error }, 'pg-boss error'));
+      await instance.start();
+      logger.info('pg-boss queue client started');
+      boss = instance;
+      return instance;
+    })().catch((err) => {
+      initPromise = null;
+      throw err;
+    });
   }
-  return boss;
+  return initPromise;
 }
 
 export async function stopQueueClient(): Promise<void> {
   if (boss) {
     await boss.stop();
     boss = null;
+    initPromise = null;
   }
 }
 

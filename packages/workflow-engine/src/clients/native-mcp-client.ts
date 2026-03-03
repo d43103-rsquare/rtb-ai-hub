@@ -59,12 +59,21 @@ export class NativeMCPClient implements IMCPClient {
         await this.connect();
       }
 
-      const result = await Promise.race([
-        this.client!.callTool({ name: mapped.toolName, arguments: mapped.input }),
-        new Promise<never>((_resolve, reject) =>
-          setTimeout(() => reject(new Error('MCP tool call timed out')), TIMEOUTS.MCP_TOOL_CALL)
-        ),
-      ]);
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => abortController.abort(), TIMEOUTS.MCP_TOOL_CALL);
+      let result;
+      try {
+        result = await Promise.race([
+          this.client!.callTool({ name: mapped.toolName, arguments: mapped.input }),
+          new Promise<never>((_resolve, reject) => {
+            abortController.signal.addEventListener('abort', () =>
+              reject(new Error('MCP tool call timed out'))
+            );
+          }),
+        ]);
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       logger.info({ tool: toolName, server: this.serverName }, 'Native MCP tool call succeeded');
 

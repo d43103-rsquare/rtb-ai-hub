@@ -33,7 +33,11 @@ export class SessionManager {
 
   async verifySession(sessionToken: string): Promise<JWTPayload> {
     try {
-      return jwt.verify(sessionToken, this.jwtSecret) as JWTPayload;
+      const payload = jwt.verify(sessionToken, this.jwtSecret) as JWTPayload & { type?: string };
+      if (payload.type === 'refresh') {
+        throw new Error('Refresh token cannot be used as session token');
+      }
+      return payload;
     } catch (error) {
       logger.error({ error }, 'Session verification failed');
       throw new Error('Invalid session');
@@ -57,7 +61,8 @@ export class SessionManager {
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    logger.info({ sessionId }, 'Session invalidated (client-side)');
+    // TODO: Implement server-side token blacklist (e.g. Redis) to truly invalidate JWT sessions
+    logger.info({ sessionId }, 'Session delete requested — JWT remains valid until expiry (client-side only)');
   }
 
   /**

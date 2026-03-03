@@ -54,7 +54,7 @@ function extractMonitoringUrl(text: string): string | undefined {
 
 function renderContent(content: string) {
   const urlPattern =
-    /(https?:\/\/[^\s]+\/monitoring\/(?:wf-[a-zA-Z0-9-]+|[A-Z]+-\d+)|\/monitoring\/(?:wf-[a-zA-Z0-9-]+|[A-Z]+-\d+))/g;
+    /(https?:\/\/[^\s]+\/monitoring\/(?:wf-[a-zA-Z0-9-]+|[A-Z]+-\d+)|\/monitoring\/(?:wf-[a-zA-Z0-9-]+|[A-Z]+-\d+))/;
   const parts = content.split(urlPattern);
 
   if (parts.length === 1) {
@@ -77,8 +77,6 @@ function renderContent(content: string) {
             </Link>
           );
         }
-        // Reset lastIndex since we reuse the regex
-        urlPattern.lastIndex = 0;
         return <span key={i}>{part}</span>;
       })}
     </span>

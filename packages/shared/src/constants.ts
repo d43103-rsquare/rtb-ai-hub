@@ -347,7 +347,7 @@ export function loadPreviewConfig(): PreviewConfig {
     enabled: FEATURE_FLAGS.PREVIEW_ENABLED,
     webBasePort: Number(process.env.PREVIEW_WEB_BASE_PORT) || 5100,
     apiBasePort: Number(process.env.PREVIEW_API_BASE_PORT) || 5101,
-    worktreeBasePath: process.env.PREVIEW_WORKTREE_PATH || '/tmp/previews',
+    worktreeBasePath: process.env.PREVIEW_WORKTREE_PATH || '.claude/tmp/previews',
     workDir: process.env.WORK_REPO_LOCAL_PATH || '',
     templateDbUrl: process.env.PREVIEW_TEMPLATE_DB_URL || process.env.DATABASE_URL || '',
     dbAdminUrl:

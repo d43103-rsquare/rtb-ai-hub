@@ -81,6 +81,7 @@ export function WorkflowDetailPage() {
         const data = JSON.parse(event.data);
         if (data.status === 'not_found') return;
         setWorkflow(mapResponseToWorkflow(data));
+        setLoading(false);
       } catch (_) {
         /* intentionally empty — malformed SSE frames are non-fatal */
       }
@@ -115,7 +116,14 @@ export function WorkflowDetailPage() {
     );
   }
 
-  const ciResult = workflow.artifacts.ci_result ? JSON.parse(workflow.artifacts.ci_result) : null;
+  let ciResult = null;
+  if (workflow.artifacts.ci_result) {
+    try {
+      ciResult = JSON.parse(workflow.artifacts.ci_result);
+    } catch {
+      /* invalid JSON — skip CI result rendering */
+    }
+  }
 
   return (
     <div className="space-y-6">

@@ -39,7 +39,6 @@ export async function registerWorkers(boss: PgBoss) {
         logger.info({ jobId: job.id, result, userId }, 'Figma workflow completed');
       } catch (error) {
         logger.error({ jobId: job.id, error }, 'Figma workflow failed');
-        throw error;
       }
     }
   });
@@ -53,7 +52,6 @@ export async function registerWorkers(boss: PgBoss) {
         logger.info({ jobId: job.id, result, userId }, 'Jira workflow completed');
       } catch (error) {
         logger.error({ jobId: job.id, error }, 'Jira workflow failed');
-        throw error;
       }
     }
   });
@@ -74,7 +72,6 @@ export async function registerWorkers(boss: PgBoss) {
         logger.info({ jobId: job.id, userId }, 'GitHub workflow completed');
       } catch (error) {
         logger.error({ jobId: job.id, error }, 'GitHub workflow failed');
-        throw error;
       }
     }
   });
@@ -88,7 +85,6 @@ export async function registerWorkers(boss: PgBoss) {
         logger.info({ jobId: job.id, result, userId }, 'Datadog workflow completed');
       } catch (error) {
         logger.error({ jobId: job.id, error }, 'Datadog workflow failed');
-        throw error;
       }
     }
   });

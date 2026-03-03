@@ -41,12 +41,15 @@ export function useWorkflowSSE(initialWorkflows: SimulatedWorkflow[]) {
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     const fetchWorkflows = async () => {
       try {
         const res = await fetch(`${API_URL}/api/workflows`);
         const data = await res.json();
+        if (!mountedRef.current) return;
         if (Array.isArray(data) && data.length > 0) {
           setWorkflows(data.map(transformWorkflow));
         }
@@ -62,7 +65,7 @@ export function useWorkflowSSE(initialWorkflows: SimulatedWorkflow[]) {
 
       ws.onopen = () => {
         console.log('WebSocket connected');
-        setIsConnected(true);
+        if (mountedRef.current) setIsConnected(true);
         ws.send(JSON.stringify({ type: 'subscribe' }));
       };
 
@@ -79,7 +82,7 @@ export function useWorkflowSSE(initialWorkflows: SimulatedWorkflow[]) {
 
       ws.onclose = () => {
         console.log('WebSocket disconnected');
-        setIsConnected(false);
+        if (mountedRef.current) setIsConnected(false);
         wsRef.current = null;
 
         reconnectTimeoutRef.current = window.setTimeout(() => {
@@ -90,7 +93,7 @@ export function useWorkflowSSE(initialWorkflows: SimulatedWorkflow[]) {
 
       ws.onerror = (error) => {
         console.error('WebSocket error:', error);
-        setIsConnected(false);
+        if (mountedRef.current) setIsConnected(false);
       };
 
       wsRef.current = ws;
@@ -108,6 +111,7 @@ export function useWorkflowSSE(initialWorkflows: SimulatedWorkflow[]) {
         clearTimeout(reconnectTimeoutRef.current);
       }
       clearInterval(pollInterval);
+      mountedRef.current = false;
     };
   }, []);
 

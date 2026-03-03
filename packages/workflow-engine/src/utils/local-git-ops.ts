@@ -131,6 +131,23 @@ export async function resolveBaseBranch(env: Environment, workDir: string): Prom
   return env === 'stg' ? 'develop' : 'main';
 }
 
+// ─── Repo Lock (prevents concurrent checkout on same repo) ──────────────────
+
+const repoLocks = new Map<string, Promise<void>>();
+
+async function withRepoLock<T>(workDir: string, fn: () => Promise<T>): Promise<T> {
+  const prev = repoLocks.get(workDir) ?? Promise.resolve();
+  let release: () => void;
+  const lock = new Promise<void>((resolve) => { release = resolve; });
+  repoLocks.set(workDir, prev.then(() => lock));
+  await prev;
+  try {
+    return await fn();
+  } finally {
+    release!();
+  }
+}
+
 // ─── Git Operations ──────────────────────────────────────────────────────────
 
 /**
@@ -168,21 +185,23 @@ export async function createLocalBranch(
   baseBranch: string,
   workDir: string
 ): Promise<LocalBranchResult> {
-  try {
-    logger.info({ branchName, baseBranch, workDir }, 'Creating local branch');
+  return withRepoLock(workDir, async () => {
+    try {
+      logger.info({ branchName, baseBranch, workDir }, 'Creating local branch');
 
-    await fetchLatest(workDir);
-    await git(`checkout ${baseBranch}`, workDir);
-    await git(`pull origin ${baseBranch}`, workDir, 60000);
-    await git(`checkout -b ${branchName}`, workDir);
+      await fetchLatest(workDir);
+      await git(`checkout ${baseBranch}`, workDir);
+      await git(`pull origin ${baseBranch}`, workDir, 60000);
+      await git(`checkout -b ${branchName}`, workDir);
 
-    logger.info({ branchName, baseBranch }, 'Local branch created');
-    return { success: true, branchName, baseBranch };
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    logger.error({ branchName, baseBranch, error: msg }, 'Failed to create local branch');
-    return { success: false, branchName, baseBranch, error: msg };
-  }
+      logger.info({ branchName, baseBranch }, 'Local branch created');
+      return { success: true, branchName, baseBranch };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.error({ branchName, baseBranch, error: msg }, 'Failed to create local branch');
+      return { success: false, branchName, baseBranch, error: msg };
+    }
+  });
 }
 
 /**

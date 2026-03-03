@@ -6,7 +6,7 @@
  * 기존 local-git-ops.ts, preview-manager.ts, target-ci.ts 패턴 재활용.
  */
 
-import { exec } from 'node:child_process';
+import { exec, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -22,6 +22,7 @@ import { determineBranchType, generateBranchName, resolveBaseBranch } from '../u
 import { WorktreeRegistry } from './registry';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 const logger = createLogger('worktree-manager');
 
 const WORK_REPO = process.env.WORK_REPO_LOCAL_PATH || '';
@@ -171,12 +172,16 @@ export class WorktreeManager {
       { cwd: info.worktreePath }
     );
 
-    // Create PR using gh CLI
-    const draft = params.draft ? '--draft' : '';
-    const { stdout } = await execAsync(
-      `gh pr create --title "${params.title.replace(/"/g, '\\"')}" --body "${params.body.replace(/"/g, '\\"')}" --base ${info.baseBranch} ${draft} --json number,url`,
-      { cwd: info.worktreePath }
-    );
+    // Create PR using gh CLI (execFile avoids shell interpolation of title/body)
+    const ghArgs = [
+      'pr', 'create',
+      '--title', params.title,
+      '--body', params.body,
+      '--base', info.baseBranch,
+      ...(params.draft ? ['--draft'] : []),
+      '--json', 'number,url',
+    ];
+    const { stdout } = await execFileAsync('gh', ghArgs, { cwd: info.worktreePath });
 
     try {
       const pr = JSON.parse(stdout);

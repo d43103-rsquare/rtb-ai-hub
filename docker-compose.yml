@@ -97,7 +97,7 @@ services:
       ALLOWED_WORKSPACE_DOMAINS: ${ALLOWED_WORKSPACE_DOMAINS:-}
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-minimum-32-characters-long}
       APP_URL: ${APP_URL:-http://localhost:4001}
-      DASHBOARD_URL: ${DASHBOARD_URL:-http://localhost:4000}
+      DASHBOARD_URL: ${DASHBOARD_URL:-http://localhost:3000}
     ports:
       - '${AUTH_SERVICE_PORT:-4001}:4001'
     depends_on:

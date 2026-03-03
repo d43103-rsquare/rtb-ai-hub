@@ -215,11 +215,20 @@ export class DebateEngine {
     let roundNumber = 0;
     const maxRounds = Math.ceil((config.maxTurns - session.turns.length) / participants.length);
 
+    if (maxRounds <= 0) {
+      session.outcome = {
+        status: 'max-turns-reached',
+        decision: 'No remaining turns for iteration rounds',
+        artifacts: this.collectArtifacts(session.turns),
+      };
+      return;
+    }
+
     while (roundNumber < maxRounds) {
       roundNumber++;
 
       // Check consensus before each round (hybrid: AI + keyword fallback)
-      const consensus = await consensusDetector.analyze(session.turns, config.participants, config.topic);
+      const consensus = await consensusDetector.analyze(session.turns, participants, config.topic);
 
       if (consensus.status === 'consensus') {
         // Moderator summarizes
@@ -350,7 +359,7 @@ export class DebateEngine {
     } catch {
       // No adapter — compression will use truncation fallback
     }
-    const compressed = await compressHistory(input.previousTurns, summarizationAdapter);
+    const compressed = await compressHistory(input.previousTurns, summarizationAdapter, session.id);
 
     const turn = await executeTurn(
       { ...input, compressedHistory: compressed },

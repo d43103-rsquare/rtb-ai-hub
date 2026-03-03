@@ -5,7 +5,14 @@ import { JiraClient } from '../utils/jira-client';
 import { internalAuth } from '../middleware/internal-auth';
 
 const logger = createLogger('workflows-api');
-const jiraClient = new JiraClient();
+let jiraClient: JiraClient | null = null;
+
+function getJiraClient(): JiraClient {
+  if (!jiraClient) {
+    jiraClient = new JiraClient();
+  }
+  return jiraClient;
+}
 
 export function createWorkflowsRouter() {
   const router = Router();
@@ -278,7 +285,8 @@ export function createWorkflowsRouter() {
         const now = new Date().toISOString();
         await queryRaw(
           `INSERT INTO workflow_executions (id, type, status, input, jira_key, summary, env, progress, assignee, timeline, artifacts, gate_decisions, started_at, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+           ON CONFLICT (jira_key, type) DO NOTHING`,
           [
             newId,
             'agent-chat',
@@ -299,8 +307,8 @@ export function createWorkflowsRouter() {
         );
         logger.info({ id: newId, jiraKey: id }, 'Auto-created workflow for Jira key');
         workflows = await queryRaw(
-          'SELECT id, jira_key, summary, input, status, progress, assignee, timeline, artifacts, gate_decisions, created_at, updated_at FROM workflow_executions WHERE id = $1 LIMIT 1',
-          [newId]
+          'SELECT id, jira_key, summary, input, status, progress, assignee, timeline, artifacts, gate_decisions, created_at, updated_at FROM workflow_executions WHERE jira_key = $1 AND type = $2 ORDER BY created_at DESC LIMIT 1',
+          [id, 'agent-chat']
         );
       }
 
@@ -428,7 +436,7 @@ export function createWorkflowsRouter() {
         return;
       }
 
-      const success = await jiraClient.transitionToStatus(jiraKey, 'INT 검증');
+      const success = await getJiraClient().transitionToStatus(jiraKey, 'INT 검증');
 
       if (!success) {
         res.status(400).json({ error: 'Target status "INT 검증" not available for this issue' });
